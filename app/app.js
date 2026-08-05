@@ -522,6 +522,7 @@ const BIO_KEY = "prcopilot.biometric";
 const AUTH = (window.APP_CONFIG && window.APP_CONFIG.AUTH) || {};
 const AUTH_ENABLED = !!AUTH.CLIENT_ID;
 let msal = null;
+let msalReady = null;
 if (AUTH_ENABLED && window.msal) {
   msal = new window.msal.PublicClientApplication({
     auth: {
@@ -531,6 +532,8 @@ if (AUTH_ENABLED && window.msal) {
     },
     cache: { cacheLocation: "localStorage" },
   });
+  // MSAL v3 requires initialize() before any other API call.
+  msalReady = msal.initialize();
 }
 
 function getSession() {
@@ -543,6 +546,7 @@ function biometricEnabled() { return localStorage.getItem(BIO_KEY) === "1"; }
 // Sign in — REAL Microsoft prompt when configured; demo identity otherwise.
 async function signIn() {
   if (AUTH_ENABLED && msal) {
+    if (msalReady) await msalReady; // ensure MSAL v3 is initialized
     const result = await msal.loginPopup({ scopes: AUTH.SCOPES || ["User.Read"], prompt: "select_account" });
     const acct = result.account;
     msal.setActiveAccount(acct);
@@ -572,8 +576,7 @@ async function signIn() {
 
 // Get an Azure DevOps access token for the signed-in user (silent, popup fallback).
 async function acquireAdoToken() {
-  if (!(AUTH_ENABLED && msal)) return "";
-  const scopes = AUTH.ADO_SCOPES || ["499b84ac-1321-427f-aa17-267ca6975798/.default"];
+  if (!(AUTH_ENABLED && msal)) return "";  if (msalReady) await msalReady;  const scopes = AUTH.ADO_SCOPES || ["499b84ac-1321-427f-aa17-267ca6975798/.default"];
   const account = msal.getActiveAccount() || msal.getAllAccounts()[0];
   try {
     const r = await msal.acquireTokenSilent({ scopes, account });
@@ -875,6 +878,7 @@ el("settingsBtn").addEventListener("click", () => {
   await loadVersion();
 
   if (AUTH_ENABLED && msal) {
+    if (msalReady) await msalReady; // MSAL v3 must be initialized first
     // Real login mode: only skip the sign-in screen if there's a genuine MSAL
     // account we can silently get a fresh ADO token for. A stale DEMO session
     // (real=false) is ignored so the user gets the real Microsoft prompt.

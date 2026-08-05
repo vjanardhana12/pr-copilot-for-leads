@@ -1,5 +1,5 @@
 // Minimal service worker — makes the app installable and gives an offline shell.
-const CACHE = "pr-copilot-v11";
+const CACHE = "pr-copilot-v12";
 const ASSETS = [
   "./",
   "./index.html",
