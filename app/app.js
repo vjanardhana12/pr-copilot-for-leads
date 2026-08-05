@@ -1,4 +1,8 @@
 // PR Copilot for Leads — front-end logic (vanilla JS, no framework).
+// ---------------------------------------------------------------------------
+// Created by Vinod Kumar K J (AIBS) <vjanardhana@microsoft.com>
+// © 2026 Vinod Kumar K J. All rights reserved. Microsoft Global Hackathon 2026.
+// ---------------------------------------------------------------------------
 // Talks to the backend defined in config.js. Falls back gracefully on error.
 
 const API = (window.APP_CONFIG && window.APP_CONFIG.API_BASE) || "";
@@ -604,9 +608,21 @@ function renderSettings() {
         <div class="label">Check for updates</div>
         <button class="quick-btn review" id="checkUpdateBtn">Check</button>
       </div>
+      <div class="settings-row">
+        <div class="label">Share this app
+          <div class="sub">Send the install link to a colleague</div>
+        </div>
+        <button class="quick-btn approve" id="shareBtn">Share</button>
+      </div>
     </div>
 
-    <button class="danger-btn" id="signoutBtn">Sign out &amp; reset this device</button>`;
+    <button class="danger-btn" id="signoutBtn">Sign out &amp; reset this device</button>
+
+    <div class="credit">
+      Created by <b>Vinod Kumar K J</b> · AIBS<br />
+      <span>&lt;vjanardhana@microsoft.com&gt;</span><br />
+      <span class="credit-copy">© 2026 Vinod Kumar K J. All rights reserved.</span>
+    </div>`;
 
   el("bioToggle").addEventListener("change", async (e) => {
     if (e.target.checked) {
@@ -623,6 +639,7 @@ function renderSettings() {
     }
   });
   el("checkUpdateBtn").addEventListener("click", checkForUpdate);
+  el("shareBtn").addEventListener("click", shareApp);
   el("signoutBtn").addEventListener("click", () => {
     if (!confirm("Sign out and remove this device's saved session, default, and biometric?")) return;
     clearSession();
@@ -660,7 +677,35 @@ async function checkForUpdate() {
 function showUpdateBanner() {
   el("updateBanner").classList.remove("hidden");
 }
-el("updateBtn") && el("updateBtn").addEventListener("click", async () => {
+
+// ---- Share the app (native share sheet → WhatsApp, Teams, email, etc.) ----
+async function shareApp() {
+  const installUrl = location.origin + "/install.html";
+  const shareData = {
+    title: "PR Copilot for Leads",
+    text:
+      "PR Copilot for Leads — review, triage & approve Azure DevOps pull requests from your phone. " +
+      "Scan or open to install (Microsoft employees). Created by Vinod Kumar K J.",
+    url: installUrl,
+  };
+  try {
+    if (navigator.share) {
+      await navigator.share(shareData); // opens WhatsApp/Teams/email/etc.
+      return;
+    }
+  } catch (e) {
+    if (e && e.name === "AbortError") return; // user cancelled
+  }
+  // Fallback: WhatsApp web link + copy to clipboard.
+  try {
+    await navigator.clipboard.writeText(shareData.text + " " + installUrl);
+    toast("Install link copied to clipboard");
+  } catch {
+    /* ignore */
+  }
+  const wa = "https://wa.me/?text=" + encodeURIComponent(shareData.text + " " + installUrl);
+  window.open(wa, "_blank");
+}el("updateBtn") && el("updateBtn").addEventListener("click", async () => {
   // Clear caches + unregister SW so the newest build loads.
   try {
     if ("caches" in window) {

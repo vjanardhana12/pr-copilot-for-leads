@@ -3,6 +3,7 @@
 **AI review cockpit that lets Dynamics 365 F&O dev leads approve, reject, or comment on pull requests from their phone in seconds.**
 
 > Microsoft Global Hackathon 2026 project.
+> **Created by Vinod Kumar K J (AIBS) — <vjanardhana@microsoft.com>. © 2026. All rights reserved.**
 
 ## The problem
 

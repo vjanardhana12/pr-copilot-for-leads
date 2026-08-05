@@ -1,4 +1,8 @@
 // PR Copilot for Leads — backend (Node.js, zero dependencies).
+// ---------------------------------------------------------------------------
+// Created by Vinod Kumar K J (AIBS) <vjanardhana@microsoft.com>
+// © 2026 Vinod Kumar K J. All rights reserved. Microsoft Global Hackathon 2026.
+// ---------------------------------------------------------------------------
 // Serves the PWA (../app) AND a small JSON API.
 //
 // Data source is chosen by env ADO_MODE:
@@ -14,7 +18,7 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const svc = require("./prService");
-const { VERSION } = require("./version");
+const { VERSION, AUTHOR, AUTHOR_EMAIL, AUTHOR_ORG } = require("./version");
 
 const PORT = process.env.PORT || 3000;
 const APP_DIR = path.join(__dirname, "..", "app");
@@ -88,7 +92,7 @@ const server = http.createServer(async (req, res) => {
     }
     // App version (for update-available checks)
     if (url === "/api/version" && method === "GET") {
-      return sendJson(res, 200, { version: VERSION });
+      return sendJson(res, 200, { version: VERSION, author: AUTHOR, email: AUTHOR_EMAIL, org: AUTHOR_ORG });
     }
     // List projects in the org
     if (url === "/api/projects" && method === "GET") {
@@ -171,6 +175,7 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, () => {
   console.log(`\n  PR Copilot for Leads running  [mode: ${svc.MODE}]  v${VERSION}`);
+  console.log(`  Created by ${AUTHOR} (${AUTHOR_ORG}) <${AUTHOR_EMAIL}>`);
   console.log(`  → Local:   http://localhost:${PORT}`);
   console.log(`  → Phone:   http://<your-laptop-ip>:${PORT}  (same Wi-Fi)\n`);
 });

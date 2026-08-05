@@ -359,6 +359,7 @@ html, body {
 .signin-as { font-size: 13px; color: var(--muted); margin-top: 8px; }
 .signin-note { font-size: 12px; color: var(--muted); margin: 20px 0 0; line-height: 1.5; }
 .signin-ver { font-size: 11px; color: #9aa8c0; margin-top: 14px; }
+.signin-credit { font-size: 11px; color: #9aa8c0; margin-top: 6px; }
 
 /* Update banner */
 .update-banner {
@@ -401,3 +402,9 @@ html, body {
   width: 100%; background: var(--red-bg); color: var(--red); border: none;
   border-radius: 12px; padding: 14px; font-size: 15px; font-weight: 600; cursor: pointer;
 }
+.credit {
+  text-align: center; color: var(--muted); font-size: 12px; line-height: 1.7;
+  margin: 22px 6px 10px;
+}
+.credit b { color: var(--ink); }
+.credit-copy { font-size: 11px; color: #9aa8c0; }
