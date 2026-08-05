@@ -11,10 +11,10 @@ window.APP_CONFIG = {
   // While CLIENT_ID is empty, the app uses a demo sign-in so it still runs with
   // zero setup. When set, a real Microsoft sign-in prompt is shown.
   AUTH: {
-    CLIENT_ID: "",          // <-- paste your Entra app (client) ID here
+    CLIENT_ID: "a58c2725-42ca-4972-9d15-bc9e1df823d4", // Entra app (client) ID
     TENANT: "common",        // "common" = any work/school account (incl. external/guest)
     SCOPES: ["User.Read"],   // proves identity in the client
     // Azure DevOps resource scope — lets the app call ADO AS THE USER.
-    ADO_SCOPES: ["499b84ac-1321-427f-aa17-267ca6975798/.default"],
+    ADO_SCOPES: ["499b84ac-1321-427f-aa17-267ca6975798/user_impersonation"],
   },
 };

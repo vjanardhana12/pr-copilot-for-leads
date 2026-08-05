@@ -873,9 +873,32 @@ el("settingsBtn").addEventListener("click", () => {
 // ---- Start ----
 (async function start() {
   await loadVersion();
+
+  if (AUTH_ENABLED && msal) {
+    // Real login mode: only skip the sign-in screen if there's a genuine MSAL
+    // account we can silently get a fresh ADO token for. A stale DEMO session
+    // (real=false) is ignored so the user gets the real Microsoft prompt.
+    const sess = getSession();
+    const account = msal.getActiveAccount() || msal.getAllAccounts()[0];
+    if (sess && sess.real && account && !biometricEnabled()) {
+      try {
+        msal.setActiveAccount(account);
+        await acquireAdoToken();
+        await enterApp();
+        return;
+      } catch {
+        /* token expired → fall through to sign-in */
+      }
+    }
+    // Any leftover non-real (demo) session should not block real sign-in.
+    if (sess && !sess.real) clearSession();
+    showSignin();
+    return;
+  }
+
+  // Demo mode (no client ID configured): remembered session goes straight in.
   const sess = getSession();
   if (sess && !biometricEnabled()) {
-    // Remembered session, no biometric → go straight in.
     await enterApp();
   } else {
     showSignin();
