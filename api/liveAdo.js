@@ -14,7 +14,10 @@ const { execFile } = require("child_process");
 const ORG = process.env.ADO_ORG || "carlsberggroup";
 const PROJECT = process.env.ADO_PROJECT || "1760-SmartCore-HUB";
 const HOST = process.env.ADO_HOST || "dev.azure.com";
-const BASE = `https://${HOST}/${ORG}/${encodeURIComponent(PROJECT)}/_apis`;
+const ORG_BASE = `https://${HOST}/${ORG}/_apis`;
+function projectBase(project) {
+  return `https://${HOST}/${ORG}/${encodeURIComponent(project || PROJECT)}/_apis`;
+}
 
 let _authHeader = null;
 
@@ -41,9 +44,10 @@ async function authHeader() {
   return _authHeader;
 }
 
-async function adoGet(pathAndQuery) {
+async function adoGet(pathAndQuery, project) {
   const headers = await authHeader();
-  const res = await fetch(`${BASE}${pathAndQuery}`, { headers });
+  const base = project === "__org__" ? ORG_BASE : projectBase(project);
+  const res = await fetch(`${base}${pathAndQuery}`, { headers });
   if (res.status === 401 || res.status === 203) {
     _authHeader = null; // force refresh next time
     throw new Error(`ADO auth failed (${res.status}) — credential may have expired`);
@@ -52,42 +56,68 @@ async function adoGet(pathAndQuery) {
   return res.json();
 }
 
+// List projects in the org.
+async function listProjects() {
+  const data = await adoGet(`/projects?$top=200&api-version=7.0`, "__org__");
+  return (data.value || [])
+    .map((p) => ({ id: p.id, name: p.name }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+// List repositories in a project.
+async function listRepos(project) {
+  const data = await adoGet(`/git/repositories?api-version=7.0`, project);
+  return (data.value || [])
+    .map((r) => ({ id: r.id, name: r.name }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
 // status: "active" | "completed" | "abandoned" | "all"
-async function listPullRequests(status = "active", top = 50) {
+// Optional project + repoId to scope the query.
+async function listPullRequests(status = "active", top = 50, project, repoId) {
   const statusQ = status === "all" ? "all" : status;
+  const scope = repoId
+    ? `/git/repositories/${repoId}/pullrequests`
+    : `/git/pullrequests`;
   const data = await adoGet(
-    `/git/pullrequests?searchCriteria.status=${statusQ}&$top=${top}&api-version=7.0`
+    `${scope}?searchCriteria.status=${statusQ}&$top=${top}&api-version=7.0`,
+    project
   );
   return data.value || [];
 }
 
-async function getPullRequest(prId) {
+async function getPullRequest(prId, project) {
   // Cross-repo lookup: PR by id (project-scoped).
-  return adoGet(`/git/pullrequests/${prId}?api-version=7.0`);
+  return adoGet(`/git/pullrequests/${prId}?api-version=7.0`, project);
 }
 
-async function getPullRequestThreads(repoId, prId) {
+async function getPullRequestThreads(repoId, prId, project) {
   const data = await adoGet(
-    `/git/repositories/${repoId}/pullRequests/${prId}/threads?api-version=7.0`
+    `/git/repositories/${repoId}/pullRequests/${prId}/threads?api-version=7.0`,
+    project
   );
   return data.value || [];
 }
 
 // Latest iteration changes (the file list / diff summary).
-async function getPullRequestChanges(repoId, prId) {
+async function getPullRequestChanges(repoId, prId, project) {
   const iters = await adoGet(
-    `/git/repositories/${repoId}/pullRequests/${prId}/iterations?api-version=7.0`
+    `/git/repositories/${repoId}/pullRequests/${prId}/iterations?api-version=7.0`,
+    project
   );
   const last = (iters.value || []).slice(-1)[0];
   if (!last) return { changeEntries: [] };
   return adoGet(
-    `/git/repositories/${repoId}/pullRequests/${prId}/iterations/${last.id}/changes?api-version=7.0`
+    `/git/repositories/${repoId}/pullRequests/${prId}/iterations/${last.id}/changes?api-version=7.0`,
+    project
   );
 }
 
 module.exports = {
   ORG,
   PROJECT,
+  listProjects,
+  listRepos,
   listPullRequests,
   getPullRequest,
   getPullRequestThreads,

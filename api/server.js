@@ -81,9 +81,25 @@ const server = http.createServer(async (req, res) => {
   if (method === "OPTIONS") return sendJson(res, 204, {});
 
   try {
+    // Config: current org/project defaults + mode
+    if (url === "/api/config" && method === "GET") {
+      return sendJson(res, 200, svc.defaults());
+    }
+    // List projects in the org
+    if (url === "/api/projects" && method === "GET") {
+      return sendJson(res, 200, await svc.getProjects());
+    }
+    // List repos in a project
+    if (url === "/api/repos" && method === "GET") {
+      const project = parsed.searchParams.get("project") || undefined;
+      return sendJson(res, 200, await svc.getRepos(project));
+    }
+
     // Triage "Today" queue — ranked across active PRs.
     if (url === "/api/today" && method === "GET") {
-      const list = await svc.getList("active");
+      const project = parsed.searchParams.get("project") || undefined;
+      const repo = parsed.searchParams.get("repo") || undefined;
+      const list = await svc.getList("active", project, repo);
       const ranked = list
         .slice()
         .sort((a, b) => (b.priority || 0) - (a.priority || 0))
@@ -99,11 +115,14 @@ const server = http.createServer(async (req, res) => {
 
       if (!id && method === "GET") {
         const status = parsed.searchParams.get("status") || "active";
-        const list = await svc.getList(status);
+        const project = parsed.searchParams.get("project") || undefined;
+        const repo = parsed.searchParams.get("repo") || undefined;
+        const list = await svc.getList(status, project, repo);
         return sendJson(res, 200, list);
       }
 
-      const pr = await svc.getDetail(id);
+      const project = parsed.searchParams.get("project") || undefined;
+      const pr = await svc.getDetail(id, project);
       if (!pr) return sendJson(res, 404, { error: "PR not found" });
 
       if (!action && method === "GET") return sendJson(res, 200, pr);

@@ -79,8 +79,8 @@ function mapLiveListItem(pr, risk, reasons, checks) {
   };
 }
 
-async function liveList(status) {
-  const prs = await live.listPullRequests(status, 50);
+async function liveList(status, project, repoId) {
+  const prs = await live.listPullRequests(status, 50, project, repoId);
   // For the list we score risk from title/branch only (cheap, no per-PR calls).
   return prs.map((pr) => {
     const hints = [pr.title, pr.sourceRefName, pr.targetRefName].filter(Boolean);
@@ -90,15 +90,15 @@ async function liveList(status) {
   });
 }
 
-async function liveDetail(id) {
-  const pr = await live.getPullRequest(id);
+async function liveDetail(id, project) {
+  const pr = await live.getPullRequest(id, project);
   if (!pr) return null;
   const repoId = pr.repository && pr.repository.id;
   let changePaths = [];
   let diff = [];
   let diffFile = "";
   try {
-    const changes = await live.getPullRequestChanges(repoId, id);
+    const changes = await live.getPullRequestChanges(repoId, id, project);
     const entries = changes.changeEntries || [];
     changePaths = entries.map((c) => (c.item && c.item.path) || "").filter(Boolean);
     const meaningful = changePaths.filter((p) => !isNoise(p));
@@ -150,16 +150,27 @@ async function liveDetail(id) {
 }
 
 // ---------- public API ----------
-async function getList(status = "active") {
-  if (MODE === "live") return liveList(status);
+async function getList(status = "active", project, repo) {
+  if (MODE === "live") return liveList(status, project, repo);
   return mockList();
 }
-async function getDetail(id) {
-  if (MODE === "live") return liveDetail(id);
+async function getDetail(id, project) {
+  if (MODE === "live") return liveDetail(id, project);
   return mockDetail(id);
+}
+async function getProjects() {
+  if (MODE === "live") return live.listProjects();
+  return [{ id: "mock", name: "Contoso F&O (mock)" }];
+}
+async function getRepos(project) {
+  if (MODE === "live") return live.listRepos(project);
+  return [{ id: "mock", name: "Contoso.FnO (mock)" }];
+}
+function defaults() {
+  return { org: live.ORG, project: live.PROJECT, mode: MODE };
 }
 function commentDraftFor(detail) {
   return detail.commentDraft || "Please address the review notes before this can be approved.";
 }
 
-module.exports = { MODE, getList, getDetail, commentDraftFor };
+module.exports = { MODE, getList, getDetail, getProjects, getRepos, defaults, commentDraftFor };

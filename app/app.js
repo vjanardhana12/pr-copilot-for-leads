@@ -12,6 +12,8 @@ const views = {
 
 let currentPR = null; // holds the currently opened PR detail
 let currentTab = "today"; // today | active | completed | all
+let currentProject = ""; // "" = default project
+let currentRepo = ""; // "" = all repos
 
 // ---- API helpers ----
 async function api(path, opts) {
@@ -223,14 +225,52 @@ async function loadInbox() {
   el("inboxSubtitle").textContent = "Loading…";
   el("prList").innerHTML = "";
   try {
-    const path =
-      currentTab === "today"
-        ? `/api/today`
-        : `/api/prs?status=${encodeURIComponent(currentTab)}`;
+    const q = new URLSearchParams();
+    if (currentProject) q.set("project", currentProject);
+    if (currentRepo) q.set("repo", currentRepo);
+    let path;
+    if (currentTab === "today") {
+      path = `/api/today?${q.toString()}`;
+    } else {
+      q.set("status", currentTab);
+      path = `/api/prs?${q.toString()}`;
+    }
     const prs = await api(path);
     renderInbox(prs);
   } catch (e) {
     el("inboxSubtitle").textContent = "Couldn't reach backend (" + e.message + ")";
+  }
+}
+
+// ---- Selectors (project / repo) ----
+async function loadProjects() {
+  const sel = el("projectSelect");
+  try {
+    const cfg = await api(`/api/config`);
+    currentProject = cfg.project || "";
+    const projects = await api(`/api/projects`);
+    sel.innerHTML = projects
+      .map((p) => `<option value="${escapeHtml(p.name)}">${escapeHtml(p.name)}</option>`)
+      .join("");
+    if (currentProject) sel.value = currentProject;
+    else currentProject = sel.value;
+    await loadRepos();
+  } catch (e) {
+    // In mock mode / no access, hide selectors gracefully.
+    document.querySelector(".selectors").style.display = "none";
+  }
+}
+
+async function loadRepos() {
+  const sel = el("repoSelect");
+  try {
+    const repos = await api(`/api/repos?project=${encodeURIComponent(currentProject)}`);
+    sel.innerHTML =
+      `<option value="">All repositories (${repos.length})</option>` +
+      repos.map((r) => `<option value="${escapeHtml(r.id)}">${escapeHtml(r.name)}</option>`).join("");
+    currentRepo = "";
+  } catch (e) {
+    sel.innerHTML = `<option value="">All repositories</option>`;
   }
 }
 
@@ -249,6 +289,17 @@ document.querySelectorAll(".tab").forEach((t) => {
     currentTab = t.dataset.tab;
     loadInbox();
   });
+});
+
+// Project / repo selectors
+el("projectSelect").addEventListener("change", async (e) => {
+  currentProject = e.target.value;
+  await loadRepos();
+  loadInbox();
+});
+el("repoSelect").addEventListener("change", (e) => {
+  currentRepo = e.target.value;
+  loadInbox();
 });
 document.querySelectorAll(".nav-btn").forEach((b) => {
   b.addEventListener("click", () => {
@@ -275,4 +326,4 @@ function escapeHtml(s) {
 
 // Start
 showView("inbox", "My Pull Requests");
-loadInbox();
+loadProjects().then(loadInbox);
