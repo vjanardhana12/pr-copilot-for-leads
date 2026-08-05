@@ -30,7 +30,7 @@ function sendJson(res, code, obj) {
     "Content-Type": "application/json; charset=utf-8",
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
   });
   res.end(body);
 }
@@ -85,30 +85,40 @@ const server = http.createServer(async (req, res) => {
 
   if (method === "OPTIONS") return sendJson(res, 204, {});
 
+  // Per-user context: the signed-in user's ADO token (Bearer) + chosen org.
+  // When present, every ADO call is made AS THAT USER (multi-user, multi-project).
+  const authz = req.headers["authorization"] || "";
+  const bearer = authz.startsWith("Bearer ") ? authz.slice(7).trim() : "";
+  const ctx = { token: bearer || null, org: parsed.searchParams.get("org") || null };
+
   try {
     // Config: current org/project defaults + mode
     if (url === "/api/config" && method === "GET") {
-      return sendJson(res, 200, { ...svc.defaults(), version: VERSION });
+      return sendJson(res, 200, { ...svc.defaults(ctx), version: VERSION });
     }
     // App version (for update-available checks)
     if (url === "/api/version" && method === "GET") {
       return sendJson(res, 200, { version: VERSION, author: AUTHOR, email: AUTHOR_EMAIL, org: AUTHOR_ORG });
     }
+    // List organizations the signed-in user belongs to
+    if (url === "/api/orgs" && method === "GET") {
+      return sendJson(res, 200, await svc.getOrgs(ctx));
+    }
     // List projects in the org
     if (url === "/api/projects" && method === "GET") {
-      return sendJson(res, 200, await svc.getProjects());
+      return sendJson(res, 200, await svc.getProjects(ctx));
     }
     // List repos in a project
     if (url === "/api/repos" && method === "GET") {
       const project = parsed.searchParams.get("project") || undefined;
-      return sendJson(res, 200, await svc.getRepos(project));
+      return sendJson(res, 200, await svc.getRepos(ctx, project));
     }
 
     // Triage "Today" queue — ranked across active PRs.
     if (url === "/api/today" && method === "GET") {
       const project = parsed.searchParams.get("project") || undefined;
       const repo = parsed.searchParams.get("repo") || undefined;
-      const list = await svc.getList("active", project, repo);
+      const list = await svc.getList(ctx, "active", project, repo);
       const ranked = list
         .slice()
         .sort((a, b) => (b.priority || 0) - (a.priority || 0))
@@ -126,12 +136,12 @@ const server = http.createServer(async (req, res) => {
         const status = parsed.searchParams.get("status") || "active";
         const project = parsed.searchParams.get("project") || undefined;
         const repo = parsed.searchParams.get("repo") || undefined;
-        const list = await svc.getList(status, project, repo);
+        const list = await svc.getList(ctx, status, project, repo);
         return sendJson(res, 200, list);
       }
 
       const project = parsed.searchParams.get("project") || undefined;
-      const pr = await svc.getDetail(id, project);
+      const pr = await svc.getDetail(ctx, id, project);
       if (!pr) return sendJson(res, 404, { error: "PR not found" });
 
       if (!action && method === "GET") return sendJson(res, 200, pr);
@@ -142,29 +152,25 @@ const server = http.createServer(async (req, res) => {
 
       if (method === "POST") {
         const body = await readBody(req);
-        // Actions are acknowledged; live WRITE is intentionally not enabled yet
-        // (read-only phase). Wiring: liveAdo.setVote / addComment.
+        // Write actions run AS THE USER in proxy mode (ADO enforces permissions);
+        // in dev-cred/mock they return a safe read-only preview.
         if (action === "approve")
-          return sendJson(res, 200, { ok: true, action: "approved", id: pr.id, note: svc.MODE === "live" ? "read-only: not sent to ADO" : "mock" });
+          return sendJson(res, 200, await svc.voteOnPr(ctx, id, project, 10));
         if (action === "reject")
-          return sendJson(res, 200, { ok: true, action: "rejected", id: pr.id, note: svc.MODE === "live" ? "read-only: not sent to ADO" : "mock" });
+          return sendJson(res, 200, await svc.voteOnPr(ctx, id, project, -10));
         if (action === "comment")
-          return sendJson(res, 200, { ok: true, action: "commented", id: pr.id, text: body.text, note: svc.MODE === "live" ? "read-only: not sent to ADO" : "mock" });
-        if (action === "revert") {
-          const project = parsed.searchParams.get("project") || undefined;
-          return sendJson(res, 200, await svc.revertPr(pr.id, project, body.ontoRef));
-        }
-        if (action === "cherry-pick") {
-          const project = parsed.searchParams.get("project") || undefined;
-          return sendJson(res, 200, await svc.cherryPickPr(pr.id, project, body.ontoRef));
-        }
+          return sendJson(res, 200, await svc.commentOnPr(ctx, id, project, body.text));
+        if (action === "revert")
+          return sendJson(res, 200, await svc.revertPr(ctx, id, project, body.ontoRef));
+        if (action === "cherry-pick")
+          return sendJson(res, 200, await svc.cherryPickPr(ctx, id, project, body.ontoRef));
       }
       return sendJson(res, 405, { error: "Method not allowed" });
     }
 
     // health
     if (url === "/api/health")
-      return sendJson(res, 200, { ok: true, mode: svc.MODE });
+      return sendJson(res, 200, { ok: true, mode: ctx.token ? "user" : svc.MODE });
   } catch (e) {
     return sendJson(res, 500, { error: e.message });
   }

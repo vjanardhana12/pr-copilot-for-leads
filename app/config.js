@@ -13,6 +13,8 @@ window.APP_CONFIG = {
   AUTH: {
     CLIENT_ID: "",          // <-- paste your Entra app (client) ID here
     TENANT: "common",        // "common" = any work/school account (incl. external/guest)
-    SCOPES: ["User.Read"],   // proves identity in the client; ADO calls stay server-side
+    SCOPES: ["User.Read"],   // proves identity in the client
+    // Azure DevOps resource scope — lets the app call ADO AS THE USER.
+    ADO_SCOPES: ["499b84ac-1321-427f-aa17-267ca6975798/.default"],
   },
 };

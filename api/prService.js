@@ -1,11 +1,20 @@
-// Service layer — abstracts MOCK vs LIVE Azure DevOps behind one shape the
-// front-end consumes. Toggle with env: ADO_MODE=live  (default: mock).
+// Service layer — one shape the front-end consumes, three data sources:
 //
-//   mock → uses api/mock-data.js (no Azure, works offline)
-//   live → uses api/liveAdo.js (read-only, your cached Git credential)
+//   mock       → api/mock-data.js (no Azure, works offline)
+//   dev-cred   → api/liveAdo.js (this machine's cached git credential; ADO_MODE=live)
+//   user-token → api/adoProxy.js (SHIPPABLE: the signed-in user's own OAuth token)
+//
+// The user-token path is what makes the app multi-user + multi-project: when a
+// request carries a Bearer token (from the front-end's MSAL sign-in) + an org,
+// every ADO call is made AS THAT USER, and ADO enforces their permissions and
+// branch policies. Nothing is hardcoded to an org.
+//
+// Selection per request (see pickAdapter): token+org → proxy; else ADO_MODE=live
+// → dev-cred; else mock.
 
 const { PRS } = require("./mock-data");
 const live = require("./liveAdo");
+const proxy = require("./adoProxy");
 const { scoreRisk, deriveChecks, trianglePriority, isNoise, daysAgo } = require("./risk");
 const xpp = require("./xppChecks");
 
@@ -65,8 +74,51 @@ function mockDetail(id) {
   };
 }
 
-// ---------- LIVE ----------
-function mapLiveListItem(pr, risk, reasons, checks) {
+// ---------- adapters (uniform interface over dev-cred vs user-token) ----------
+function liveAdapter() {
+  return {
+    orgName: live.ORG,
+    allowWrite: live.ALLOW_WRITE,
+    listPullRequests: (status, top, project, repoId) => live.listPullRequests(status, top, project, repoId),
+    getPullRequest: (id, project) => live.getPullRequest(id, project),
+    getPullRequestChanges: (repoId, id, project) => live.getPullRequestChanges(repoId, id, project),
+    getFileContent: (repoId, path, commit, project) => live.getFileContent(repoId, path, commit, project),
+    listProjects: () => live.listProjects(),
+    listRepos: (project) => live.listRepos(project),
+    revert: (repoId, id, ref, project) => live.revertPullRequest(repoId, id, ref, project),
+    cherry: (repoId, id, ref, project) => live.cherryPickPullRequest(repoId, id, ref, project),
+    vote: null, // dev-cred is read-only for votes/comments
+    comment: null,
+  };
+}
+function proxyAdapter(ctx) {
+  const { token, org } = ctx;
+  return {
+    orgName: org,
+    allowWrite: true, // ADO still enforces the user's actual permissions
+    listPullRequests: (status, top, project, repoId) =>
+      proxy.listPullRequests(token, org, status, top, project, repoId),
+    getPullRequest: (id, project) => proxy.getPullRequest(token, org, id, project),
+    getPullRequestChanges: (repoId, id, project) => proxy.getPullRequestChanges(token, org, repoId, id, project),
+    getFileContent: (repoId, path, commit, project) => proxy.getFileContent(token, org, repoId, path, commit, project),
+    listProjects: () => proxy.listProjects(token, org),
+    listRepos: (project) => proxy.listRepos(token, org, project),
+    revert: (repoId, id, ref, project) => proxy.revertPullRequest(token, org, project, repoId, id, ref),
+    cherry: (repoId, id, ref, project) => proxy.cherryPickPullRequest(token, org, project, repoId, id, ref),
+    vote: (project, repoId, id, reviewerId, v) => proxy.setVote(token, org, project, repoId, id, reviewerId, v),
+    comment: (project, repoId, id, content) => proxy.addComment(token, org, project, repoId, id, content),
+  };
+}
+// Choose source for THIS request. ctx = { token, org } from the signed-in user.
+function pickAdapter(ctx) {
+  if (ctx && ctx.token && ctx.org) return proxyAdapter(ctx);
+  if (MODE === "live") return liveAdapter();
+  return null; // → mock
+}
+
+// ---------- generic mappers (work for both dev-cred and user-token) ----------
+function mapListItem(pr, risk, reasons, checks, orgName) {
+  const projName = pr.repository && pr.repository.project ? pr.repository.project.name : "";
   return {
     id: pr.pullRequestId,
     title: pr.title,
@@ -81,26 +133,25 @@ function mapLiveListItem(pr, risk, reasons, checks) {
     checks,
     ageDays: Math.floor(daysAgo(pr.creationDate)),
     url: pr.repository
-      ? `https://dev.azure.com/${live.ORG}/${encodeURIComponent(
-          pr.repository.project ? pr.repository.project.name : ""
-        )}/_git/${encodeURIComponent(pr.repository.name)}/pullrequest/${pr.pullRequestId}`
+      ? `https://dev.azure.com/${orgName}/${encodeURIComponent(projName)}/_git/${encodeURIComponent(
+          pr.repository.name
+        )}/pullrequest/${pr.pullRequestId}`
       : "#",
   };
 }
 
-async function liveList(status, project, repoId) {
-  const prs = await live.listPullRequests(status, 50, project, repoId);
-  // For the list we score risk from title/branch only (cheap, no per-PR calls).
+async function buildList(adapter, status, project, repoId) {
+  const prs = await adapter.listPullRequests(status, 50, project, repoId);
   return prs.map((pr) => {
     const hints = [pr.title, pr.sourceRefName, pr.targetRefName].filter(Boolean);
     const { risk, reasons } = scoreRisk(pr, hints);
     const checks = deriveChecks(pr);
-    return mapLiveListItem(pr, risk, reasons, checks);
+    return mapListItem(pr, risk, reasons, checks, adapter.orgName);
   });
 }
 
-async function liveDetail(id, project) {
-  const pr = await live.getPullRequest(id, project);
+async function buildDetail(adapter, id, project) {
+  const pr = await adapter.getPullRequest(id, project);
   if (!pr) return null;
   const repoId = pr.repository && pr.repository.id;
   let changePaths = [];
@@ -108,13 +159,11 @@ async function liveDetail(id, project) {
   let diffFile = "";
   let entries = [];
   try {
-    const changes = await live.getPullRequestChanges(repoId, id, project);
+    const changes = await adapter.getPullRequestChanges(repoId, id, project);
     entries = changes.changeEntries || [];
     changePaths = entries.map((c) => (c.item && c.item.path) || "").filter(Boolean);
     const meaningful = changePaths.filter((p) => !isNoise(p));
     diffFile = meaningful[0] || changePaths[0] || "changes";
-    // Lightweight "clean diff": show the changed file list (hide noise),
-    // with change type. Real line-level diff can be added later.
     diff = entries
       .filter((c) => !isNoise((c.item && c.item.path) || ""))
       .slice(0, 40)
@@ -127,7 +176,6 @@ async function liveDetail(id, project) {
   }
 
   // ---- X++ best-practice / performance analysis ----
-  // Fetch content of a few changed X++ files at the PR's source commit and scan.
   let codeFindings = [];
   let codeSummary = { counts: { high: 0, medium: 0, low: 0 }, total: 0, top: [] };
   try {
@@ -137,28 +185,23 @@ async function liveDetail(id, project) {
     if (sourceCommit && repoId) {
       const xppEntries = entries
         .filter((c) => c.changeType !== "delete" && xpp.isXppFile((c.item && c.item.path) || ""))
-        .slice(0, 6); // cap for speed
+        .slice(0, 6);
       for (const c of xppEntries) {
         const p = c.item.path;
         try {
-          const content = await live.getFileContent(repoId, p, sourceCommit, project);
+          const content = await adapter.getFileContent(repoId, p, sourceCommit, project);
           const found = xpp.analyzeSource(p, content).map((f) => ({ ...f, file: p }));
           codeFindings.push(...found);
-        } catch (_) {
-          /* skip unreadable file */
-        }
+        } catch (_) {}
       }
       codeSummary = xpp.summarize(codeFindings);
     }
-  } catch (_) {
-    /* analysis is best-effort */
-  }
+  } catch (_) {}
 
   const { risk, reasons } = scoreRisk(pr, changePaths.length ? changePaths : [pr.title]);
   const checks = deriveChecks(pr);
   const meaningfulCount = changePaths.filter((p) => !isNoise(p)).length;
 
-  // Escalate risk if the code scan found high-severity issues.
   let finalRisk = risk;
   const finalReasons = reasons.slice();
   if (codeSummary.counts.high > 0) {
@@ -188,8 +231,10 @@ async function liveDetail(id, project) {
     codeFindings,
     codeSummary,
     status: pr.status,
+    repoId,
+    targetRefName: pr.targetRefName,
     url: pr.repository
-      ? `https://dev.azure.com/${live.ORG}/_git/${encodeURIComponent(
+      ? `https://dev.azure.com/${adapter.orgName}/_git/${encodeURIComponent(
           pr.repository.name
         )}/pullrequest/${pr.pullRequestId}`
       : "#",
@@ -200,55 +245,105 @@ async function liveDetail(id, project) {
   };
 }
 
-// ---------- public API ----------
-async function getList(status = "active", project, repo) {
-  if (MODE === "live") return liveList(status, project, repo);
-  return mockList();
+// ---------- public API (ctx = { token, org } for the signed-in user) ----------
+async function getOrgs(ctx) {
+  if (ctx && ctx.token) return proxy.listOrgs(ctx.token);
+  if (MODE === "live") return [{ id: "dev", name: live.ORG }];
+  return [{ id: "mock", name: "Contoso (mock)" }];
 }
-async function getDetail(id, project) {
-  if (MODE === "live") return liveDetail(id, project);
-  return mockDetail(id);
+async function getList(ctx, status = "active", project, repo) {
+  const a = pickAdapter(ctx);
+  if (!a) return mockList();
+  return buildList(a, status, project, repo);
 }
-async function getProjects() {
-  if (MODE === "live") return live.listProjects();
-  return [{ id: "mock", name: "Contoso F&O (mock)" }];
+async function getDetail(ctx, id, project) {
+  const a = pickAdapter(ctx);
+  if (!a) return mockDetail(id);
+  return buildDetail(a, id, project);
 }
-async function getRepos(project) {
-  if (MODE === "live") return live.listRepos(project);
-  return [{ id: "mock", name: "Contoso.FnO (mock)" }];
+async function getProjects(ctx) {
+  const a = pickAdapter(ctx);
+  if (!a) return [{ id: "mock", name: "Contoso F&O (mock)" }];
+  return a.listProjects();
 }
-function defaults() {
-  return { org: live.ORG, project: live.PROJECT, mode: MODE, allowWrite: MODE === "live" && live.ALLOW_WRITE };
+async function getRepos(ctx, project) {
+  const a = pickAdapter(ctx);
+  if (!a) return [{ id: "mock", name: "Contoso.FnO (mock)" }];
+  return a.listRepos(project);
+}
+function defaults(ctx) {
+  const a = pickAdapter(ctx);
+  return {
+    org: a ? a.orgName : (MODE === "live" ? live.ORG : ""),
+    project: MODE === "live" ? live.PROJECT : "",
+    mode: ctx && ctx.token ? "user" : MODE,
+    allowWrite: a ? !!a.allowWrite : false,
+    signedIn: !!(ctx && ctx.token),
+  };
 }
 
 // Revert / cherry-pick a PR onto a target branch.
-async function revertPr(id, project, ontoRef) {
-  if (MODE !== "live") return { ok: true, preview: true, action: "revert", id, ontoRef, note: "mock" };
-  const pr = await live.getPullRequest(id, project);
+async function revertPr(ctx, id, project, ontoRef) {
+  const a = pickAdapter(ctx);
+  if (!a) return { ok: true, preview: true, action: "revert", id, ontoRef, note: "mock" };
+  const pr = await a.getPullRequest(id, project);
   const repoId = pr.repository && pr.repository.id;
   const target = ontoRef || pr.targetRefName || "refs/heads/main";
-  if (!live.ALLOW_WRITE) {
-    return { ok: true, preview: true, action: "revert", id, ontoRef: target, note: "read-only: set ADO_ALLOW_WRITE=true to execute" };
+  if (!a.allowWrite) {
+    return { ok: true, preview: true, action: "revert", id, ontoRef: target, note: "read-only in dev mode" };
   }
-  const r = await live.revertPullRequest(repoId, id, target, project);
+  const r = await a.revert(repoId, id, target, project);
   return { ok: true, action: "revert", id, ontoRef: target, operation: r };
 }
-
-async function cherryPickPr(id, project, ontoRef) {
-  if (MODE !== "live") return { ok: true, preview: true, action: "cherry-pick", id, ontoRef, note: "mock" };
-  const pr = await live.getPullRequest(id, project);
-  const repoId = pr.repository && pr.repository.id;
+async function cherryPickPr(ctx, id, project, ontoRef) {
+  const a = pickAdapter(ctx);
+  if (!a) return { ok: true, preview: true, action: "cherry-pick", id, ontoRef, note: "mock" };
   if (!ontoRef) return { ok: false, error: "Target branch required for cherry-pick" };
+  const pr = await a.getPullRequest(id, project);
+  const repoId = pr.repository && pr.repository.id;
   const target = ontoRef.startsWith("refs/") ? ontoRef : `refs/heads/${ontoRef}`;
-  if (!live.ALLOW_WRITE) {
-    return { ok: true, preview: true, action: "cherry-pick", id, ontoRef: target, note: "read-only: set ADO_ALLOW_WRITE=true to execute" };
+  if (!a.allowWrite) {
+    return { ok: true, preview: true, action: "cherry-pick", id, ontoRef: target, note: "read-only in dev mode" };
   }
-  const r = await live.cherryPickPullRequest(repoId, id, target, project);
+  const r = await a.cherry(repoId, id, target, project);
   return { ok: true, action: "cherry-pick", id, ontoRef: target, operation: r };
+}
+// Approve / reject / comment as the signed-in user (proxy mode only).
+async function voteOnPr(ctx, id, project, vote) {
+  const a = pickAdapter(ctx);
+  if (!a || !a.vote) return { ok: true, preview: true, note: "read-only (sign in to act)" };
+  const pr = await a.getPullRequest(id, project);
+  const repoId = pr.repository && pr.repository.id;
+  // "me" reviewer id via the PR's reviewer list would be resolved client-side;
+  // ADO accepts the special reviewer id of the caller through the me alias.
+  const reviewerId = (pr.createdBy && pr.createdBy.id) || "me";
+  const r = await a.vote(project, repoId, id, ctx.userId || reviewerId, vote);
+  return { ok: true, vote, operation: r };
+}
+async function commentOnPr(ctx, id, project, text) {
+  const a = pickAdapter(ctx);
+  if (!a || !a.comment) return { ok: true, preview: true, note: "read-only (sign in to act)" };
+  const pr = await a.getPullRequest(id, project);
+  const repoId = pr.repository && pr.repository.id;
+  const r = await a.comment(project, repoId, id, text);
+  return { ok: true, operation: r };
 }
 
 function commentDraftFor(detail) {
   return detail.commentDraft || "Please address the review notes before this can be approved.";
 }
 
-module.exports = { MODE, getList, getDetail, getProjects, getRepos, defaults, commentDraftFor, revertPr, cherryPickPr };
+module.exports = {
+  MODE,
+  getOrgs,
+  getList,
+  getDetail,
+  getProjects,
+  getRepos,
+  defaults,
+  commentDraftFor,
+  revertPr,
+  cherryPickPr,
+  voteOnPr,
+  commentOnPr,
+};

@@ -16,16 +16,24 @@ const views = {
 
 let currentPR = null; // holds the currently opened PR detail
 let currentTab = "today"; // today | active | completed | all
+let currentOrg = ""; // ADO organization (per-user); "" = dev/mock
 let currentProject = ""; // "" = default project
 let currentRepo = ""; // "" = all repos
 let appVersion = ""; // set from /api/config
+let adoToken = ""; // the signed-in user's Azure DevOps access token (proxy mode)
 
 // ---- API helpers ----
 async function api(path, opts) {
-  const res = await fetch(API + path, {
-    headers: { "Content-Type": "application/json" },
-    ...opts,
-  });
+  opts = opts || {};
+  const headers = { "Content-Type": "application/json", ...(opts.headers || {}) };
+  // Send the user's ADO token so the backend acts AS THEM (multi-user mode).
+  if (adoToken) headers["Authorization"] = "Bearer " + adoToken;
+  // Append the chosen org so the backend targets the right ADO organization.
+  let url = API + path;
+  if (currentOrg) {
+    url += (url.includes("?") ? "&" : "?") + "org=" + encodeURIComponent(currentOrg);
+  }
+  const res = await fetch(url, { ...opts, headers });
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
   return res.json();
 }
@@ -355,8 +363,8 @@ function getSavedDefaults() {
     return null;
   }
 }
-function saveDefaults(project, repo, repoName) {
-  localStorage.setItem(DEFAULTS_KEY, JSON.stringify({ project, repo, repoName }));
+function saveDefaults(org, project, repo, repoName) {
+  localStorage.setItem(DEFAULTS_KEY, JSON.stringify({ org, project, repo, repoName }));
 }
 function clearDefaults() {
   localStorage.removeItem(DEFAULTS_KEY);
@@ -364,29 +372,30 @@ function clearDefaults() {
 function refreshStar() {
   const d = getSavedDefaults();
   const btn = el("defaultBtn");
-  const isDefault = d && d.project === currentProject && (d.repo || "") === (currentRepo || "");
+  const isDefault =
+    d &&
+    (d.org || "") === (currentOrg || "") &&
+    d.project === currentProject &&
+    (d.repo || "") === (currentRepo || "");
   btn.classList.toggle("is-default", !!isDefault);
   btn.textContent = isDefault ? "★" : "☆";
-  btn.title = isDefault ? "This is your default (tap to clear)" : "Set current project/repo as default";
+  btn.title = isDefault ? "This is your default (tap to clear)" : "Set current org/project/repo as default";
 }
 
 async function loadProjects() {
   const sel = el("projectSelect");
   try {
-    const cfg = await api(`/api/config`);
     const saved = getSavedDefaults();
-    // Prefer the saved default project; fall back to server default.
-    currentProject = (saved && saved.project) || cfg.project || "";
     const projects = await api(`/api/projects`);
     sel.innerHTML = projects
       .map((p) => `<option value="${escapeHtml(p.name)}">${escapeHtml(p.name)}</option>`)
       .join("");
-    // Only apply saved project if it's still in the list.
-    if (currentProject && [...sel.options].some((o) => o.value === currentProject)) {
-      sel.value = currentProject;
-    } else {
-      currentProject = sel.value;
+    // Prefer saved default project when it's in the list; else first.
+    const want = saved && saved.project;
+    if (want && [...sel.options].some((o) => o.value === want)) {
+      sel.value = want;
     }
+    currentProject = sel.value;
     await loadRepos();
     refreshStar();
   } catch (e) {
@@ -433,7 +442,13 @@ document.querySelectorAll(".tab").forEach((t) => {
   });
 });
 
-// Project / repo selectors
+// Org / project / repo selectors
+el("orgSelect").addEventListener("change", async (e) => {
+  currentOrg = e.target.value;
+  await loadProjects(); // repos + inbox cascade from here
+  refreshStar();
+  loadInbox();
+});
 el("projectSelect").addEventListener("change", async (e) => {
   currentProject = e.target.value;
   await loadRepos();
@@ -446,10 +461,14 @@ el("repoSelect").addEventListener("change", (e) => {
   loadInbox();
 });
 
-// Set / clear default project+repo
+// Set / clear default org+project+repo
 el("defaultBtn").addEventListener("click", () => {
   const d = getSavedDefaults();
-  const isDefault = d && d.project === currentProject && (d.repo || "") === (currentRepo || "");
+  const isDefault =
+    d &&
+    (d.org || "") === (currentOrg || "") &&
+    d.project === currentProject &&
+    (d.repo || "") === (currentRepo || "");
   if (isDefault) {
     clearDefaults();
     toast("Default cleared");
@@ -457,7 +476,7 @@ el("defaultBtn").addEventListener("click", () => {
     const repoName = el("repoSelect").selectedOptions[0]
       ? el("repoSelect").selectedOptions[0].textContent
       : "";
-    saveDefaults(currentProject, currentRepo, repoName);
+    saveDefaults(currentOrg, currentProject, currentRepo, repoName);
     toast(
       currentRepo
         ? `Default set: ${currentProject} / ${repoName}`
@@ -526,6 +545,7 @@ async function signIn() {
   if (AUTH_ENABLED && msal) {
     const result = await msal.loginPopup({ scopes: AUTH.SCOPES || ["User.Read"], prompt: "select_account" });
     const acct = result.account;
+    msal.setActiveAccount(acct);
     const session = {
       name: acct.name || acct.username,
       email: acct.username,
@@ -535,6 +555,7 @@ async function signIn() {
       real: true,
     };
     setSession(session);
+    await acquireAdoToken(); // get an Azure DevOps token for this user
     return session;
   }
   // Demo identity (no Entra app registration configured yet).
@@ -547,6 +568,21 @@ async function signIn() {
   };
   setSession(session);
   return session;
+}
+
+// Get an Azure DevOps access token for the signed-in user (silent, popup fallback).
+async function acquireAdoToken() {
+  if (!(AUTH_ENABLED && msal)) return "";
+  const scopes = AUTH.ADO_SCOPES || ["499b84ac-1321-427f-aa17-267ca6975798/.default"];
+  const account = msal.getActiveAccount() || msal.getAllAccounts()[0];
+  try {
+    const r = await msal.acquireTokenSilent({ scopes, account });
+    adoToken = r.accessToken;
+  } catch (e) {
+    const r = await msal.acquireTokenPopup({ scopes });
+    adoToken = r.accessToken;
+  }
+  return adoToken;
 }
 
 async function signOutAuth() {
@@ -613,8 +649,40 @@ async function enterApp() {
   el("signinScreen").classList.add("hidden");
   el("app").classList.remove("hidden");
   showView("inbox", "My Pull Requests");
+  // For a returning real session, silently get a fresh ADO token.
+  const sess = getSession();
+  if (sess && sess.real && !adoToken) {
+    try { await acquireAdoToken(); } catch {}
+  }
+  await loadOrgs();
   await loadProjects();
   await loadInbox();
+}
+
+// Load the ADO organizations the signed-in user belongs to.
+async function loadOrgs() {
+  const sel = el("orgSelect");
+  try {
+    const orgs = await api(`/api/orgs`);
+    if (!orgs.length) {
+      sel.style.display = "none";
+      return;
+    }
+    const saved = getSavedDefaults();
+    sel.innerHTML = orgs
+      .map((o) => `<option value="${escapeHtml(o.name)}">${escapeHtml(o.name)}</option>`)
+      .join("");
+    // Prefer saved default org, else first.
+    if (saved && saved.org && [...sel.options].some((o) => o.value === saved.org)) {
+      sel.value = saved.org;
+    }
+    currentOrg = sel.value;
+    sel.style.display = orgs.length > 1 ? "" : "none"; // hide if only one
+  } catch (e) {
+    // Dev/mock mode → no org concept; hide the selector.
+    sel.style.display = "none";
+    currentOrg = "";
+  }
 }
 
 // ---- Settings screen ----
