@@ -141,6 +141,14 @@ const server = http.createServer(async (req, res) => {
           return sendJson(res, 200, { ok: true, action: "rejected", id: pr.id, note: svc.MODE === "live" ? "read-only: not sent to ADO" : "mock" });
         if (action === "comment")
           return sendJson(res, 200, { ok: true, action: "commented", id: pr.id, text: body.text, note: svc.MODE === "live" ? "read-only: not sent to ADO" : "mock" });
+        if (action === "revert") {
+          const project = parsed.searchParams.get("project") || undefined;
+          return sendJson(res, 200, await svc.revertPr(pr.id, project, body.ontoRef));
+        }
+        if (action === "cherry-pick") {
+          const project = parsed.searchParams.get("project") || undefined;
+          return sendJson(res, 200, await svc.cherryPickPr(pr.id, project, body.ontoRef));
+        }
       }
       return sendJson(res, 405, { error: "Method not allowed" });
     }

@@ -118,13 +118,73 @@ async function getPullRequestChanges(repoId, prId, project) {
   );
 }
 
+// Fetch a file's text content at a specific commit (for code analysis).
+async function getFileContent(repoId, filePath, commitId, project) {
+  const headers = await authHeader();
+  const base = projectBase(project);
+  const q = new URLSearchParams({
+    path: filePath,
+    "versionDescriptor.versionType": "commit",
+    "versionDescriptor.version": commitId,
+    includeContent: "true",
+    "api-version": "7.0",
+  });
+  const res = await fetch(`${base}/git/repositories/${repoId}/items?${q.toString()}`, {
+    headers: { ...headers, Accept: "application/json" },
+  });
+  if (!res.ok) throw new Error(`ADO item ${res.status}`);
+  const data = await res.json();
+  return data.content || "";
+}
+
+// ---- WRITE operations (guarded by ADO_ALLOW_WRITE) ----
+const ALLOW_WRITE = String(process.env.ADO_ALLOW_WRITE || "").toLowerCase() === "true";
+
+async function adoPost(pathAndQuery, body, project) {
+  const headers = await authHeader();
+  const base = projectBase(project);
+  const res = await fetch(`${base}${pathAndQuery}`, {
+    method: "POST",
+    headers: { ...headers, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`ADO ${res.status} on ${pathAndQuery}`);
+  return res.json();
+}
+
+// Create a revert of a completed PR onto a target branch (creates a new ref + PR flow).
+// https://learn.microsoft.com/rest/api/azure/devops/git/reverts
+async function revertPullRequest(repoId, prId, ontoRef, project) {
+  const generatedRef = `refs/heads/revert/pr-${prId}-${Date.now()}`;
+  return adoPost(
+    `/git/repositories/${repoId}/reverts?api-version=7.0`,
+    { generatedRefName: generatedRef, ontoRefName: ontoRef, source: { pullRequestId: Number(prId) } },
+    project
+  );
+}
+
+// Cherry-pick a PR's commits onto a target branch.
+// https://learn.microsoft.com/rest/api/azure/devops/git/cherry-picks
+async function cherryPickPullRequest(repoId, prId, ontoRef, project) {
+  const generatedRef = `refs/heads/cherry-pick/pr-${prId}-${Date.now()}`;
+  return adoPost(
+    `/git/repositories/${repoId}/cherryPicks?api-version=7.0`,
+    { generatedRefName: generatedRef, ontoRefName: ontoRef, source: { pullRequestId: Number(prId) } },
+    project
+  );
+}
+
 module.exports = {
   ORG,
   PROJECT,
+  ALLOW_WRITE,
   listProjects,
   listRepos,
   listPullRequests,
   getPullRequest,
   getPullRequestThreads,
   getPullRequestChanges,
+  getFileContent,
+  revertPullRequest,
+  cherryPickPullRequest,
 };

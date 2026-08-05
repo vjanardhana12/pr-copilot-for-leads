@@ -148,15 +148,69 @@ function renderDetail(pr) {
         .join("")}
     </div>
 
-    <div class="action-bar">
-      <button class="quick-btn changes" data-act="reject">Reject</button>
-      <button class="quick-btn review" data-act="comment">Comment</button>
-      <button class="quick-btn approve" data-act="approve">Approve</button>
-    </div>`;
+    ${renderCodeReview(pr)}
+
+    ${
+      pr.status === "completed"
+        ? `<div class="action-bar">
+             <button class="quick-btn review" data-act="cherry-pick">Cherry-pick</button>
+             <button class="quick-btn changes" data-act="revert">Revert</button>
+           </div>`
+        : `<div class="action-bar">
+             <button class="quick-btn changes" data-act="reject">Reject</button>
+             <button class="quick-btn review" data-act="comment">Comment</button>
+             <button class="quick-btn approve" data-act="approve">Approve</button>
+           </div>`
+    }`;
 
   el("detailContent").querySelectorAll("[data-act]").forEach((b) => {
     b.addEventListener("click", () => handleAction(pr.id, b.dataset.act));
   });
+}
+
+function renderCodeReview(pr) {
+  const s = pr.codeSummary;
+  const findings = pr.codeFindings || [];
+  if (!s || !s.total) {
+    return `
+    <div class="panel">
+      <p class="panel-label code">X++ CODE REVIEW</p>
+      <div class="check-row"><span class="dot ok"></span>No best-practice or performance issues detected</div>
+    </div>`;
+  }
+  const chip = (n, cls, label) =>
+    n ? `<span class="sev-chip ${cls}">${n} ${label}</span>` : "";
+  const items = s.top
+    .map(
+      (f) => `
+      <div class="finding ${f.severity}">
+        <div class="finding-head">
+          <span class="sev-dot ${f.severity}"></span>
+          <span class="finding-msg">${escapeHtml(f.message)}</span>
+          <span class="finding-cat">${escapeHtml(f.category)}</span>
+        </div>
+        ${f.file ? `<div class="finding-file">${escapeHtml(shortPath(f.file))}${f.line ? ":" + f.line : ""}</div>` : ""}
+        ${f.snippet ? `<code class="finding-snippet">${escapeHtml(f.snippet)}</code>` : ""}
+        <div class="finding-hint">${escapeHtml(f.hint)}</div>
+      </div>`
+    )
+    .join("");
+  return `
+    <div class="panel">
+      <p class="panel-label code">X++ CODE REVIEW</p>
+      <div class="sev-summary">
+        ${chip(s.counts.high, "high", "high")}
+        ${chip(s.counts.medium, "medium", "medium")}
+        ${chip(s.counts.low, "low", "low")}
+        <span class="sev-total">${s.total} finding${s.total > 1 ? "s" : ""}</span>
+      </div>
+      ${items}
+    </div>`;
+}
+
+function shortPath(p) {
+  const parts = String(p).split("/");
+  return parts.length > 2 ? ".../" + parts.slice(-2).join("/") : p;
 }
 
 function renderDiff(pr) {
@@ -217,6 +271,30 @@ async function handleAction(id, act) {
       toast("Comment sent to developer");
     } catch (e) {
       toast("Failed: " + e.message);
+    }
+  }
+  if (act === "revert") {
+    if (!confirm("Create a revert PR for this merged PR?")) return;
+    try {
+      const q = currentProject ? `?project=${encodeURIComponent(currentProject)}` : "";
+      const r = await api(`/api/prs/${id}/revert${q}`, { method: "POST", body: JSON.stringify({}) });
+      toast(r.preview ? "Revert preview (read-only)" : "Revert PR created");
+    } catch (e) {
+      toast("Revert failed: " + e.message);
+    }
+  }
+  if (act === "cherry-pick") {
+    const target = prompt("Cherry-pick onto which branch? (e.g. release/2026.07 or main)", "main");
+    if (!target) return;
+    try {
+      const q = currentProject ? `?project=${encodeURIComponent(currentProject)}` : "";
+      const r = await api(`/api/prs/${id}/cherry-pick${q}`, {
+        method: "POST",
+        body: JSON.stringify({ ontoRef: target }),
+      });
+      toast(r.preview ? `Cherry-pick preview → ${target} (read-only)` : `Cherry-picked → ${target}`);
+    } catch (e) {
+      toast("Cherry-pick failed: " + e.message);
     }
   }
 }

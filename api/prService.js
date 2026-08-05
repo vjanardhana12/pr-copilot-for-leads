@@ -7,6 +7,7 @@
 const { PRS } = require("./mock-data");
 const live = require("./liveAdo");
 const { scoreRisk, deriveChecks, trianglePriority, isNoise, daysAgo } = require("./risk");
+const xpp = require("./xppChecks");
 
 const MODE = (process.env.ADO_MODE || "mock").toLowerCase();
 
@@ -39,6 +40,12 @@ function mockList() {
 function mockDetail(id) {
   const p = PRS.find((x) => x.id === Number(id));
   if (!p) return null;
+  // Run the real X++ analyzer over the mock diff text so the feature demos offline.
+  const source = (p.diff || [])
+    .map((l) => l.text.replace(/^[+\-]\s?/, ""))
+    .join("\n");
+  const codeFindings = xpp.analyzeSource(p.diffFile || "mock.xpp", source).map((f) => ({ ...f, file: p.diffFile }));
+  const codeSummary = xpp.summarize(codeFindings);
   return {
     id: p.id,
     title: p.title,
@@ -51,6 +58,8 @@ function mockDetail(id) {
     checks: p.checks,
     diffFile: p.diffFile,
     diff: p.diff,
+    codeFindings,
+    codeSummary,
     status: "active",
     url: "#",
   };
@@ -97,9 +106,10 @@ async function liveDetail(id, project) {
   let changePaths = [];
   let diff = [];
   let diffFile = "";
+  let entries = [];
   try {
     const changes = await live.getPullRequestChanges(repoId, id, project);
-    const entries = changes.changeEntries || [];
+    entries = changes.changeEntries || [];
     changePaths = entries.map((c) => (c.item && c.item.path) || "").filter(Boolean);
     const meaningful = changePaths.filter((p) => !isNoise(p));
     diffFile = meaningful[0] || changePaths[0] || "changes";
@@ -116,26 +126,67 @@ async function liveDetail(id, project) {
     diff = [{ type: "ctx", text: "Diff unavailable: " + e.message }];
   }
 
+  // ---- X++ best-practice / performance analysis ----
+  // Fetch content of a few changed X++ files at the PR's source commit and scan.
+  let codeFindings = [];
+  let codeSummary = { counts: { high: 0, medium: 0, low: 0 }, total: 0, top: [] };
+  try {
+    const sourceCommit =
+      (pr.lastMergeSourceCommit && pr.lastMergeSourceCommit.commitId) ||
+      (pr.lastMergeCommit && pr.lastMergeCommit.commitId);
+    if (sourceCommit && repoId) {
+      const xppEntries = entries
+        .filter((c) => c.changeType !== "delete" && xpp.isXppFile((c.item && c.item.path) || ""))
+        .slice(0, 6); // cap for speed
+      for (const c of xppEntries) {
+        const p = c.item.path;
+        try {
+          const content = await live.getFileContent(repoId, p, sourceCommit, project);
+          const found = xpp.analyzeSource(p, content).map((f) => ({ ...f, file: p }));
+          codeFindings.push(...found);
+        } catch (_) {
+          /* skip unreadable file */
+        }
+      }
+      codeSummary = xpp.summarize(codeFindings);
+    }
+  } catch (_) {
+    /* analysis is best-effort */
+  }
+
   const { risk, reasons } = scoreRisk(pr, changePaths.length ? changePaths : [pr.title]);
   const checks = deriveChecks(pr);
   const meaningfulCount = changePaths.filter((p) => !isNoise(p)).length;
+
+  // Escalate risk if the code scan found high-severity issues.
+  let finalRisk = risk;
+  const finalReasons = reasons.slice();
+  if (codeSummary.counts.high > 0) {
+    finalRisk = "high";
+    finalReasons.unshift(`${codeSummary.counts.high} high-severity code issue(s)`);
+  } else if (codeSummary.counts.medium > 0 && finalRisk === "low") {
+    finalRisk = "medium";
+    finalReasons.unshift(`${codeSummary.counts.medium} code issue(s)`);
+  }
 
   return {
     id: pr.pullRequestId,
     title: pr.title,
     author: pr.createdBy && pr.createdBy.displayName,
-    risk,
-    reasons,
+    risk: finalRisk,
+    reasons: finalReasons,
     filesChanged: meaningfulCount || changePaths.length,
-    summaryShort: shortFrom(pr, risk, meaningfulCount || changePaths.length),
+    summaryShort: shortFrom(pr, finalRisk, meaningfulCount || changePaths.length),
     summary:
       (pr.description ? pr.description.trim().slice(0, 400) : "") ||
-      `${risk.toUpperCase()} risk. ${reasons.join(", ")}. Opened ${Math.floor(
+      `${finalRisk.toUpperCase()} risk. ${finalReasons.join(", ")}. Opened ${Math.floor(
         daysAgo(pr.creationDate)
       )} day(s) ago by ${pr.createdBy && pr.createdBy.displayName}.`,
     checks,
     diffFile,
     diff,
+    codeFindings,
+    codeSummary,
     status: pr.status,
     url: pr.repository
       ? `https://dev.azure.com/${live.ORG}/_git/${encodeURIComponent(
@@ -143,9 +194,9 @@ async function liveDetail(id, project) {
         )}/pullrequest/${pr.pullRequestId}`
       : "#",
     commentDraft:
-      risk === "high"
-        ? `This PR touches ${reasons.join(", ")}. Please add/confirm test coverage and rebase onto the target branch before it can be approved.`
-        : `Thanks — looks reasonable. Please confirm ${reasons[0]} is intended and that checks are green before merge.`,
+      finalRisk === "high"
+        ? `This PR touches ${finalReasons.join(", ")}. Please address the flagged code issues, add/confirm test coverage, and rebase onto the target branch before it can be approved.`
+        : `Thanks — looks reasonable. Please confirm ${finalReasons[0]} is intended and that checks are green before merge.`,
   };
 }
 
@@ -167,10 +218,37 @@ async function getRepos(project) {
   return [{ id: "mock", name: "Contoso.FnO (mock)" }];
 }
 function defaults() {
-  return { org: live.ORG, project: live.PROJECT, mode: MODE };
+  return { org: live.ORG, project: live.PROJECT, mode: MODE, allowWrite: MODE === "live" && live.ALLOW_WRITE };
 }
+
+// Revert / cherry-pick a PR onto a target branch.
+async function revertPr(id, project, ontoRef) {
+  if (MODE !== "live") return { ok: true, preview: true, action: "revert", id, ontoRef, note: "mock" };
+  const pr = await live.getPullRequest(id, project);
+  const repoId = pr.repository && pr.repository.id;
+  const target = ontoRef || pr.targetRefName || "refs/heads/main";
+  if (!live.ALLOW_WRITE) {
+    return { ok: true, preview: true, action: "revert", id, ontoRef: target, note: "read-only: set ADO_ALLOW_WRITE=true to execute" };
+  }
+  const r = await live.revertPullRequest(repoId, id, target, project);
+  return { ok: true, action: "revert", id, ontoRef: target, operation: r };
+}
+
+async function cherryPickPr(id, project, ontoRef) {
+  if (MODE !== "live") return { ok: true, preview: true, action: "cherry-pick", id, ontoRef, note: "mock" };
+  const pr = await live.getPullRequest(id, project);
+  const repoId = pr.repository && pr.repository.id;
+  if (!ontoRef) return { ok: false, error: "Target branch required for cherry-pick" };
+  const target = ontoRef.startsWith("refs/") ? ontoRef : `refs/heads/${ontoRef}`;
+  if (!live.ALLOW_WRITE) {
+    return { ok: true, preview: true, action: "cherry-pick", id, ontoRef: target, note: "read-only: set ADO_ALLOW_WRITE=true to execute" };
+  }
+  const r = await live.cherryPickPullRequest(repoId, id, target, project);
+  return { ok: true, action: "cherry-pick", id, ontoRef: target, operation: r };
+}
+
 function commentDraftFor(detail) {
   return detail.commentDraft || "Please address the review notes before this can be approved.";
 }
 
-module.exports = { MODE, getList, getDetail, getProjects, getRepos, defaults, commentDraftFor };
+module.exports = { MODE, getList, getDetail, getProjects, getRepos, defaults, commentDraftFor, revertPr, cherryPickPr };

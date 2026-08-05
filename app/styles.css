@@ -203,6 +203,42 @@ html, body {
 
 .check-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; font-size: 15px; color: #33425c; }
 
+/* X++ code review panel */
+.panel-label.code { color: #8a5cff; }
+.sev-summary { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.sev-chip {
+  font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 10px;
+}
+.sev-chip.high { background: var(--red-bg); color: var(--red); }
+.sev-chip.medium { background: var(--amber-bg); color: #b9791a; }
+.sev-chip.low { background: var(--blue-bg); color: var(--blue); }
+.sev-total { font-size: 12px; color: var(--muted); margin-left: auto; }
+
+.finding {
+  border-left: 4px solid var(--line);
+  background: #f8fafd;
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+}
+.finding.high { border-left-color: var(--red); }
+.finding.medium { border-left-color: var(--amber); }
+.finding.low { border-left-color: var(--blue); }
+.finding-head { display: flex; align-items: center; gap: 8px; }
+.sev-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.sev-dot.high { background: var(--red); }
+.sev-dot.medium { background: var(--amber); }
+.sev-dot.low { background: var(--blue); }
+.finding-msg { font-size: 14px; font-weight: 600; color: var(--ink); flex: 1; }
+.finding-cat { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); }
+.finding-file { font-size: 12px; color: var(--muted); margin: 4px 0 0; font-family: "SF Mono", Consolas, monospace; }
+.finding-snippet {
+  display: block; font-family: "SF Mono", Consolas, monospace; font-size: 12px;
+  background: #0e1b33; color: #cbd8ee; padding: 6px 8px; border-radius: 6px; margin: 6px 0;
+  white-space: pre-wrap; word-break: break-word;
+}
+.finding-hint { font-size: 13px; color: #46567a; }
+
 .action-bar {
   position: fixed;
   bottom: 66px;
