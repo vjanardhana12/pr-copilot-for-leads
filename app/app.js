@@ -8,12 +8,14 @@ const views = {
   inbox: el("inboxView"),
   detail: el("detailView"),
   diff: el("diffView"),
+  settings: el("settingsView"),
 };
 
 let currentPR = null; // holds the currently opened PR detail
 let currentTab = "today"; // today | active | completed | all
 let currentProject = ""; // "" = default project
 let currentRepo = ""; // "" = all repos
+let appVersion = ""; // set from /api/config
 
 // ---- API helpers ----
 async function api(path, opts) {
@@ -36,7 +38,6 @@ function showView(name, title) {
   });
   window.scrollTo(0, 0);
 }
-
 function toast(msg) {
   const t = el("toast");
   t.textContent = msg;
@@ -464,6 +465,249 @@ function escapeHtml(s) {
   );
 }
 
-// Start
-showView("inbox", "My Pull Requests");
-loadProjects().then(loadInbox);
+// ======================================================================
+// Auth (mock Entra flow for the hackathon) + biometric unlock (WebAuthn)
+// ======================================================================
+// NOTE: This is a hackathon-grade auth SHELL. It demonstrates the real flow —
+// Microsoft sign-in, remembered session, biometric/PIN unlock, sign-out/reset —
+// without a real Entra app registration yet. Swapping in MSAL later replaces
+// signIn()/getSession() only; the rest of the app is unchanged.
+// GOVERNANCE: in the real build every ADO call carries the signed-in user's
+// token, so Azure DevOps enforces branch policies + approver permissions.
+
+const SESSION_KEY = "prcopilot.session";
+const BIO_KEY = "prcopilot.biometric";
+
+function getSession() {
+  try { return JSON.parse(localStorage.getItem(SESSION_KEY) || "null"); } catch { return null; }
+}
+function setSession(s) { localStorage.setItem(SESSION_KEY, JSON.stringify(s)); }
+function clearSession() { localStorage.removeItem(SESSION_KEY); }
+function biometricEnabled() { return localStorage.getItem(BIO_KEY) === "1"; }
+
+// Mock "Sign in with Microsoft" — in production this is an MSAL popup/redirect.
+async function signIn() {
+  // Simulated identity; real MSAL returns account.name / username.
+  const session = {
+    name: "Vinod Kumar K J",
+    email: "vjanardhana@microsoft.com",
+    initials: "VK",
+    signedInAt: Date.now(),
+  };
+  setSession(session);
+  return session;
+}
+
+function initials(name) {
+  return (name || "?").split(/\s+/).map((p) => p[0]).slice(0, 2).join("").toUpperCase();
+}
+
+// WebAuthn helpers (platform authenticator = Face ID / Touch ID / Windows Hello / PIN)
+async function registerBiometric() {
+  if (!window.PublicKeyCredential) throw new Error("Biometrics not supported on this device/browser");
+  const cred = await navigator.credentials.create({
+    publicKey: {
+      challenge: crypto.getRandomValues(new Uint8Array(32)),
+      rp: { name: "PR Copilot for Leads" },
+      user: {
+        id: crypto.getRandomValues(new Uint8Array(16)),
+        name: (getSession() && getSession().email) || "user",
+        displayName: (getSession() && getSession().name) || "user",
+      },
+      pubKeyCredParams: [{ type: "public-key", alg: -7 }, { type: "public-key", alg: -257 }],
+      authenticatorSelection: { userVerification: "required" },
+      timeout: 60000,
+    },
+  });
+  if (!cred) throw new Error("Enrollment cancelled");
+  localStorage.setItem(BIO_KEY, "1");
+}
+async function verifyBiometric() {
+  if (!window.PublicKeyCredential) throw new Error("Biometrics not supported");
+  const assertion = await navigator.credentials.get({
+    publicKey: {
+      challenge: crypto.getRandomValues(new Uint8Array(32)),
+      userVerification: "required",
+      timeout: 60000,
+    },
+  });
+  return !!assertion;
+}
+
+function showSignin() {
+  el("signinScreen").classList.remove("hidden");
+  el("app").classList.add("hidden");
+  const sess = getSession();
+  // If a session exists + biometric is on, offer quick unlock.
+  if (sess && biometricEnabled()) {
+    el("biometricUnlock").classList.remove("hidden");
+    el("signinAs").textContent = `Signed in as ${sess.name}`;
+    el("msSigninBtn").textContent = "Use a different account";
+  } else {
+    el("biometricUnlock").classList.add("hidden");
+  }
+  if (appVersion) el("signinVer").textContent = "v" + appVersion;
+}
+
+async function enterApp() {
+  el("signinScreen").classList.add("hidden");
+  el("app").classList.remove("hidden");
+  showView("inbox", "My Pull Requests");
+  await loadProjects();
+  await loadInbox();
+}
+
+// ---- Settings screen ----
+function renderSettings() {
+  const sess = getSession() || {};
+  const bio = biometricEnabled();
+  el("settingsContent").innerHTML = `
+    <div class="settings-head">Account</div>
+    <div class="settings-group">
+      <div class="settings-row">
+        <div class="avatar">${escapeHtml(sess.initials || initials(sess.name))}</div>
+        <div class="label">${escapeHtml(sess.name || "Not signed in")}
+          <div class="sub">${escapeHtml(sess.email || "")}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-head">Security</div>
+    <div class="settings-group">
+      <div class="settings-row">
+        <div class="label">Unlock with Face ID / PIN
+          <div class="sub">Skip full sign-in next time on this device</div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="bioToggle" ${bio ? "checked" : ""} />
+          <span class="slider"></span>
+        </label>
+      </div>
+    </div>
+
+    <div class="settings-head">Permissions</div>
+    <div class="settings-group">
+      <div class="settings-row">
+        <div class="label">Azure DevOps policies apply
+          <div class="sub">Approvals, required reviewers &amp; branch policies are enforced by ADO for your account. You can only do what you're allowed to in ADO.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-head">App</div>
+    <div class="settings-group">
+      <div class="settings-row">
+        <div class="label">Version<div class="sub">PR Copilot for Leads</div></div>
+        <div>v${escapeHtml(appVersion || "?")}</div>
+      </div>
+      <div class="settings-row">
+        <div class="label">Check for updates</div>
+        <button class="quick-btn review" id="checkUpdateBtn">Check</button>
+      </div>
+    </div>
+
+    <button class="danger-btn" id="signoutBtn">Sign out &amp; reset this device</button>`;
+
+  el("bioToggle").addEventListener("change", async (e) => {
+    if (e.target.checked) {
+      try {
+        await registerBiometric();
+        toast("Biometric unlock enabled");
+      } catch (err) {
+        e.target.checked = false;
+        toast(err.message);
+      }
+    } else {
+      localStorage.removeItem(BIO_KEY);
+      toast("Biometric unlock disabled");
+    }
+  });
+  el("checkUpdateBtn").addEventListener("click", checkForUpdate);
+  el("signoutBtn").addEventListener("click", () => {
+    if (!confirm("Sign out and remove this device's saved session, default, and biometric?")) return;
+    clearSession();
+    localStorage.removeItem(BIO_KEY);
+    clearDefaults();
+    toast("Signed out");
+    showSignin();
+  });
+}
+
+// ---- Version / update ----
+async function loadVersion() {
+  try {
+    const cfg = await api(`/api/config`);
+    appVersion = cfg.version || "";
+    const known = localStorage.getItem("prcopilot.version");
+    if (known && known !== appVersion) showUpdateBanner();
+    localStorage.setItem("prcopilot.version", appVersion);
+  } catch {
+    /* ignore */
+  }
+}
+async function checkForUpdate() {
+  try {
+    const v = await api(`/api/version`);
+    if (v.version && v.version !== appVersion) {
+      showUpdateBanner();
+    } else {
+      toast("You're on the latest version (v" + (v.version || appVersion) + ")");
+    }
+  } catch (e) {
+    toast("Update check failed");
+  }
+}
+function showUpdateBanner() {
+  el("updateBanner").classList.remove("hidden");
+}
+el("updateBtn") && el("updateBtn").addEventListener("click", async () => {
+  // Clear caches + unregister SW so the newest build loads.
+  try {
+    if ("caches" in window) {
+      const keys = await caches.keys();
+      await Promise.all(keys.map((k) => caches.delete(k)));
+    }
+    if (navigator.serviceWorker) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map((r) => r.unregister()));
+    }
+  } catch {}
+  location.reload(true);
+});
+
+// ---- Sign-in wiring ----
+el("msSigninBtn").addEventListener("click", async () => {
+  el("msSigninBtn").textContent = "Signing in…";
+  try {
+    await signIn();
+    await enterApp();
+  } catch (e) {
+    toast("Sign-in failed: " + e.message);
+    el("msSigninBtn").textContent = "Sign in with Microsoft";
+  }
+});
+el("biometricBtn").addEventListener("click", async () => {
+  try {
+    const ok = await verifyBiometric();
+    if (ok) await enterApp();
+    else toast("Unlock failed");
+  } catch (e) {
+    toast("Unlock failed: " + e.message);
+  }
+});
+el("settingsBtn").addEventListener("click", () => {
+  renderSettings();
+  showView("settings", "Settings");
+});
+
+// ---- Start ----
+(async function start() {
+  await loadVersion();
+  const sess = getSession();
+  if (sess && !biometricEnabled()) {
+    // Remembered session, no biometric → go straight in.
+    await enterApp();
+  } else {
+    showSignin();
+  }
+})();

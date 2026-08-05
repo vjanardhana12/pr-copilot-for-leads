@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Install PR Copilot for Leads</title>
+  <style>
+    body { font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif; margin: 0; background: #eef2f8; color: #0b1e3f; }
+    .wrap { max-width: 480px; margin: 0 auto; padding: 28px 20px 60px; }
+    .card { background: #fff; border-radius: 20px; padding: 26px; box-shadow: 0 8px 28px rgba(11,30,63,0.12); text-align: center; }
+    h1 { font-size: 22px; margin: 14px 0 4px; }
+    .sub { color: #5b6b85; font-size: 15px; margin: 0 0 20px; }
+    .qr { width: 240px; height: 240px; margin: 0 auto 16px; border-radius: 16px; background: #fff; }
+    .url { font-size: 14px; color: #2a6cf0; word-break: break-all; margin-bottom: 6px; }
+    h2 { font-size: 15px; margin: 24px 0 8px; }
+    ol { text-align: left; padding-left: 20px; color: #33425c; font-size: 14px; line-height: 1.7; }
+    .badge { display:inline-block; background:#e8f0ff; color:#2a6cf0; border-radius:10px; padding:4px 10px; font-size:12px; font-weight:600; }
+    code { background:#f0f3f8; padding:2px 6px; border-radius:6px; font-size:13px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <span class="badge">INTERNAL · Microsoft employees</span>
+      <h1>PR Copilot for Leads</h1>
+      <p class="sub">Scan to open, then add to your home screen — no app store needed.</p>
+      <img class="qr" id="qr" src="install-qr.png" alt="Install QR code" />
+      <div class="url" id="url"></div>
+
+      <h2>iPhone / iPad (Safari)</h2>
+      <ol>
+        <li>Open the link above in <b>Safari</b>.</li>
+        <li>Tap the <b>Share</b> button.</li>
+        <li>Tap <b>Add to Home Screen</b> → <b>Add</b>.</li>
+      </ol>
+
+      <h2>Android (Chrome)</h2>
+      <ol>
+        <li>Open the link in <b>Chrome</b>.</li>
+        <li>Tap the <b>⋮</b> menu.</li>
+        <li>Tap <b>Install app</b> / <b>Add to Home screen</b>.</li>
+      </ol>
+      <p class="sub" style="margin-top:20px">Sign in with your Microsoft account. Your Azure DevOps permissions and branch policies always apply.</p>
+    </div>
+  </div>
+  <script>
+    // Show the current origin as the install URL (the page is served by the app).
+    document.getElementById('url').textContent = location.origin;
+  </script>
+</body>
+</html>

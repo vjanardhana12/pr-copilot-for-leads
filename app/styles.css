@@ -322,3 +322,82 @@ html, body {
 @keyframes toastIn { from { opacity: 0; transform: translate(-50%, 8px);} to { opacity: 1; transform: translate(-50%, 0);} }
 
 .spinner { text-align: center; color: var(--muted); padding: 40px; font-size: 14px; }
+
+/* Sign-in screen */
+.signin {
+  position: fixed; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+  background: linear-gradient(135deg, #0b1e3f, #123a6b 55%, #1e5aa8);
+}
+.signin-card {
+  background: #fff; border-radius: 24px; padding: 32px 26px;
+  max-width: 380px; width: 100%; text-align: center;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+}
+.signin-logo img { border-radius: 20px; }
+.signin-card h1 { font-size: 24px; margin: 16px 0 6px; color: var(--ink); }
+.signin-sub { color: var(--muted); font-size: 15px; margin: 0 0 24px; }
+.ms-signin {
+  width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px;
+  background: #2f2f2f; color: #fff; border: none; border-radius: 12px;
+  padding: 14px; font-size: 16px; font-weight: 600; cursor: pointer;
+}
+.ms-signin:active { background: #1f1f1f; }
+.ms-logo { width: 20px; height: 20px; display: inline-block;
+  background:
+    linear-gradient(#f25022 0 0) 0 0/9px 9px no-repeat,
+    linear-gradient(#7fba00 0 0) 11px 0/9px 9px no-repeat,
+    linear-gradient(#00a4ef 0 0) 0 11px/9px 9px no-repeat,
+    linear-gradient(#ffb900 0 0) 11px 11px/9px 9px no-repeat;
+}
+.biometric-unlock { margin-top: 16px; }
+.biometric-btn {
+  width: 100%; background: var(--blue-bg); color: var(--blue); border: none;
+  border-radius: 12px; padding: 13px; font-size: 15px; font-weight: 600; cursor: pointer;
+}
+.signin-as { font-size: 13px; color: var(--muted); margin-top: 8px; }
+.signin-note { font-size: 12px; color: var(--muted); margin: 20px 0 0; line-height: 1.5; }
+.signin-ver { font-size: 11px; color: #9aa8c0; margin-top: 14px; }
+
+/* Update banner */
+.update-banner {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  background: #1e5aa8; color: #fff; text-align: center;
+  padding: 10px 14px; font-size: 14px;
+}
+.update-banner button {
+  background: #fff; color: #1e5aa8; border: none; border-radius: 8px;
+  padding: 5px 12px; font-weight: 600; margin-left: 8px; cursor: pointer;
+}
+
+/* Settings */
+.settings-group { background: #fff; border-radius: 16px; box-shadow: var(--shadow); margin-bottom: 16px; overflow: hidden; }
+.settings-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 15px 16px; border-bottom: 1px solid var(--line);
+}
+.settings-row:last-child { border-bottom: none; }
+.settings-row .label { flex: 1; font-size: 15px; color: var(--ink); }
+.settings-row .sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.settings-head { font-size: 12px; font-weight: 700; letter-spacing: 0.5px; color: var(--muted); margin: 4px 6px 8px; text-transform: uppercase; }
+.avatar {
+  width: 44px; height: 44px; border-radius: 50%;
+  background: linear-gradient(135deg, #4aa3ff, #8a5cff); color: #fff;
+  display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 18px;
+}
+.switch { position: relative; width: 46px; height: 28px; flex: none; }
+.switch input { opacity: 0; width: 0; height: 0; }
+.slider {
+  position: absolute; inset: 0; background: #cbd5e6; border-radius: 999px; transition: 0.2s; cursor: pointer;
+}
+.slider::before {
+  content: ""; position: absolute; width: 22px; height: 22px; left: 3px; top: 3px;
+  background: #fff; border-radius: 50%; transition: 0.2s;
+}
+.switch input:checked + .slider { background: var(--green); }
+.switch input:checked + .slider::before { transform: translateX(18px); }
+.danger-btn {
+  width: 100%; background: var(--red-bg); color: var(--red); border: none;
+  border-radius: 12px; padding: 14px; font-size: 15px; font-weight: 600; cursor: pointer;
+}

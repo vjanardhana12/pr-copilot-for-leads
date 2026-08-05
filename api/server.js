@@ -14,6 +14,7 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const svc = require("./prService");
+const { VERSION } = require("./version");
 
 const PORT = process.env.PORT || 3000;
 const APP_DIR = path.join(__dirname, "..", "app");
@@ -83,7 +84,11 @@ const server = http.createServer(async (req, res) => {
   try {
     // Config: current org/project defaults + mode
     if (url === "/api/config" && method === "GET") {
-      return sendJson(res, 200, svc.defaults());
+      return sendJson(res, 200, { ...svc.defaults(), version: VERSION });
+    }
+    // App version (for update-available checks)
+    if (url === "/api/version" && method === "GET") {
+      return sendJson(res, 200, { version: VERSION });
     }
     // List projects in the org
     if (url === "/api/projects" && method === "GET") {
@@ -165,7 +170,7 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`\n  PR Copilot for Leads running  [mode: ${svc.MODE}]`);
+  console.log(`\n  PR Copilot for Leads running  [mode: ${svc.MODE}]  v${VERSION}`);
   console.log(`  → Local:   http://localhost:${PORT}`);
   console.log(`  → Phone:   http://<your-laptop-ip>:${PORT}  (same Wi-Fi)\n`);
 });

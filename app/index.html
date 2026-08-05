@@ -13,12 +13,39 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <!-- App shell: three views toggled by JS -->
-  <div id="app">
+  <!-- Update-available banner -->
+  <div id="updateBanner" class="update-banner hidden">
+    A new version is available. <button id="updateBtn">Update</button>
+  </div>
+
+  <!-- SIGN-IN SCREEN (shown until "signed in") -->
+  <div id="signinScreen" class="signin hidden">
+    <div class="signin-card">
+      <div class="signin-logo">
+        <img src="icons/icon-192.png" alt="PR Copilot" width="72" height="72" />
+      </div>
+      <h1>PR Copilot for Leads</h1>
+      <p class="signin-sub">Review, triage &amp; approve F&amp;O pull requests — in seconds.</p>
+      <button id="msSigninBtn" class="ms-signin">
+        <span class="ms-logo" aria-hidden="true"></span>
+        Sign in with Microsoft
+      </button>
+      <div id="biometricUnlock" class="biometric-unlock hidden">
+        <button id="biometricBtn" class="biometric-btn">🔓 Unlock with Face ID / PIN</button>
+        <div class="signin-as" id="signinAs"></div>
+      </div>
+      <p class="signin-note">Uses your Microsoft account. Your Azure DevOps permissions and branch policies always apply.</p>
+      <div class="signin-ver" id="signinVer"></div>
+    </div>
+  </div>
+
+  <!-- App shell -->
+  <div id="app" class="hidden">
     <!-- Top bar -->
     <header class="topbar">
       <button id="backBtn" class="icon-btn hidden" aria-label="Back">‹</button>
       <div class="topbar-title" id="topbarTitle">My Pull Requests</div>
+      <button id="settingsBtn" class="icon-btn" aria-label="Settings">⚙</button>
       <button id="refreshBtn" class="icon-btn" aria-label="Refresh">⟳</button>
     </header>
 
@@ -47,6 +74,11 @@
     <!-- DIFF VIEW -->
     <main id="diffView" class="view hidden">
       <div id="diffContent"></div>
+    </main>
+
+    <!-- SETTINGS VIEW -->
+    <main id="settingsView" class="view hidden">
+      <div id="settingsContent"></div>
     </main>
 
     <!-- Bottom nav -->
