@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build output
+dist/
+build/
+out/
+*.vsix
+
+# Environment / secrets — NEVER commit tokens or PATs
+.env
+.env.*
+*.local.json
+secrets.json
+appsettings.*.json
+
+# Editor / OS
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+*.suo
+*.user
+
+# Logs
+*.log
