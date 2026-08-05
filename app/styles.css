@@ -202,6 +202,28 @@ html, body {
 /* Detail view */
 .detail-title { font-size: 22px; font-weight: 700; margin: 4px 4px 6px; }
 .detail-sub { color: var(--muted); font-size: 14px; margin: 0 4px 16px; }
+
+/* Segmented control (Summary / Files) inside a PR */
+.seg {
+  display: flex;
+  gap: 4px;
+  background: #dfe7f2;
+  padding: 4px;
+  border-radius: 12px;
+  margin: 0 2px 14px;
+}
+.seg-btn {
+  flex: 1;
+  border: none;
+  background: none;
+  padding: 9px;
+  border-radius: 9px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--muted);
+  cursor: pointer;
+}
+.seg-btn.active { background: #fff; color: var(--ink); box-shadow: var(--shadow); }
 .panel {
   background: var(--card);
   border-radius: 16px;

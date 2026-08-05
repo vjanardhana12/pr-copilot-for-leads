@@ -11,7 +11,6 @@ const el = (id) => document.getElementById(id);
 const views = {
   inbox: el("inboxView"),
   detail: el("detailView"),
-  diff: el("diffView"),
   settings: el("settingsView"),
 };
 
@@ -37,8 +36,10 @@ function showView(name, title) {
   views[name].classList.remove("hidden");
   if (title) el("topbarTitle").textContent = title;
   el("backBtn").classList.toggle("hidden", name === "inbox");
+  // Global bottom nav: Home is active for inbox/detail; Settings for settings.
   document.querySelectorAll(".nav-btn").forEach((b) => {
-    b.classList.toggle("active", b.dataset.nav === (name === "detail" ? "actions" : name));
+    const active = b.dataset.nav === "settings" ? name === "settings" : name !== "settings";
+    b.classList.toggle("active", active);
   });
   window.scrollTo(0, 0);
 }
@@ -126,47 +127,76 @@ function renderDetail(pr) {
     ["labels", "Labels correct", pr.checks.labels],
     ["rebase", "No rebase needed", pr.checks.rebase],
   ];
+  const diffLines = (pr.diff || [])
+    .map((l) => `<div class="diff-line ${l.type}">${escapeHtml(l.text)}</div>`)
+    .join("");
+  const actionBar =
+    pr.status === "completed"
+      ? `<div class="action-bar">
+           <button class="quick-btn review" data-act="cherry-pick">Cherry-pick</button>
+           <button class="quick-btn changes" data-act="revert">Revert</button>
+         </div>`
+      : `<div class="action-bar">
+           <button class="quick-btn changes" data-act="reject">Reject</button>
+           <button class="quick-btn review" data-act="comment">Comment</button>
+           <button class="quick-btn approve" data-act="approve">Approve</button>
+         </div>`;
+
   el("detailContent").innerHTML = `
     <div class="detail-title">${escapeHtml(pr.title)}</div>
     <div class="detail-sub">${escapeHtml(pr.author || "")} · ${pr.filesChanged} files
       &nbsp;<span class="badge ${riskClass(pr.risk)}">${pr.risk.toUpperCase()}</span></div>
 
-    <div class="panel">
-      <p class="panel-label ai">AI SUMMARY</p>
-      <p>${escapeHtml(pr.summary)}</p>
-      ${
-        (pr.reasons || []).length
-          ? `<div class="reasons">${pr.reasons
-              .map((r) => `<span class="reason ${pr.risk === "high" ? "hot" : ""}">${escapeHtml(r)}</span>`)
-              .join("")}</div>`
-          : ""
-      }
+    <div class="seg">
+      <button class="seg-btn active" data-seg="summary">Summary</button>
+      <button class="seg-btn" data-seg="files">Files (${(pr.diff || []).length})</button>
     </div>
 
-    <div class="panel">
-      <p class="panel-label checks">PRECHECKS</p>
-      ${checks
-        .map(
-          ([k, label, ok]) =>
-            `<div class="check-row"><span class="dot ${ok ? "ok" : "bad"}"></span>${label}</div>`
-        )
-        .join("")}
+    <div id="segSummary">
+      <div class="panel">
+        <p class="panel-label ai">AI SUMMARY</p>
+        <p>${escapeHtml(pr.summary)}</p>
+        ${
+          (pr.reasons || []).length
+            ? `<div class="reasons">${pr.reasons
+                .map((r) => `<span class="reason ${pr.risk === "high" ? "hot" : ""}">${escapeHtml(r)}</span>`)
+                .join("")}</div>`
+            : ""
+        }
+      </div>
+
+      <div class="panel">
+        <p class="panel-label checks">PRECHECKS</p>
+        ${checks
+          .map(
+            ([k, label, ok]) =>
+              `<div class="check-row"><span class="dot ${ok ? "ok" : "bad"}"></span>${label}</div>`
+          )
+          .join("")}
+      </div>
+
+      ${renderCodeReview(pr)}
     </div>
 
-    ${renderCodeReview(pr)}
+    <div id="segFiles" class="hidden">
+      <div class="panel">
+        <p class="panel-label code">CLEAN DIFF · ${escapeHtml(pr.diffFile || "changes")}</p>
+        <div class="diff-box">${diffLines || '<div class="diff-line ctx">No diff available</div>'}</div>
+      </div>
+    </div>
 
-    ${
-      pr.status === "completed"
-        ? `<div class="action-bar">
-             <button class="quick-btn review" data-act="cherry-pick">Cherry-pick</button>
-             <button class="quick-btn changes" data-act="revert">Revert</button>
-           </div>`
-        : `<div class="action-bar">
-             <button class="quick-btn changes" data-act="reject">Reject</button>
-             <button class="quick-btn review" data-act="comment">Comment</button>
-             <button class="quick-btn approve" data-act="approve">Approve</button>
-           </div>`
-    }`;
+    ${actionBar}`;
+
+  // Segmented toggle (Summary / Files) — keeps Diff per-PR, not a global tab.
+  el("detailContent").querySelectorAll(".seg-btn").forEach((b) => {
+    b.addEventListener("click", () => {
+      el("detailContent").querySelectorAll(".seg-btn").forEach((x) => x.classList.remove("active"));
+      b.classList.add("active");
+      const files = b.dataset.seg === "files";
+      el("segSummary").classList.toggle("hidden", files);
+      el("segFiles").classList.toggle("hidden", !files);
+    });
+  });
 
   el("detailContent").querySelectorAll("[data-act]").forEach((b) => {
     b.addEventListener("click", () => handleAction(pr.id, b.dataset.act));
@@ -218,15 +248,6 @@ function shortPath(p) {
   return parts.length > 2 ? ".../" + parts.slice(-2).join("/") : p;
 }
 
-function renderDiff(pr) {
-  const lines = (pr.diff || [])
-    .map((l) => `<div class="diff-line ${l.type}">${escapeHtml(l.text)}</div>`)
-    .join("");
-  el("diffContent").innerHTML = `
-    <div class="diff-file">${escapeHtml(pr.diffFile || "changes")}</div>
-    <div class="diff-box">${lines || '<div class="diff-line ctx">No diff available</div>'}</div>`;
-}
-
 // ---- Actions ----
 async function openDetail(id) {
   showView("detail", "Pull Request");
@@ -235,7 +256,6 @@ async function openDetail(id) {
     const q = currentProject ? `?project=${encodeURIComponent(currentProject)}` : "";
     const pr = await api(`/api/prs/${id}${q}`);
     renderDetail(pr);
-    renderDiff(pr);
   } catch (e) {
     el("detailContent").innerHTML = `<div class="spinner">Couldn't load PR (${e.message})</div>`;
   }
@@ -449,15 +469,12 @@ el("defaultBtn").addEventListener("click", () => {
 document.querySelectorAll(".nav-btn").forEach((b) => {
   b.addEventListener("click", () => {
     const nav = b.dataset.nav;
-    if (nav === "inbox") {
+    if (nav === "home") {
       showView("inbox", "My Pull Requests");
       loadInbox();
-    } else if (nav === "diff") {
-      if (!currentPR) return toast("Open a PR first");
-      showView("diff", "Clean diff");
-    } else if (nav === "actions") {
-      if (!currentPR) return toast("Open a PR first");
-      showView("detail", "Pull Request");
+    } else if (nav === "settings") {
+      renderSettings();
+      showView("settings", "Settings");
     }
   });
 });
@@ -482,6 +499,21 @@ function escapeHtml(s) {
 const SESSION_KEY = "prcopilot.session";
 const BIO_KEY = "prcopilot.biometric";
 
+// MSAL setup — real Microsoft sign-in when a CLIENT_ID is configured.
+const AUTH = (window.APP_CONFIG && window.APP_CONFIG.AUTH) || {};
+const AUTH_ENABLED = !!AUTH.CLIENT_ID;
+let msal = null;
+if (AUTH_ENABLED && window.msal) {
+  msal = new window.msal.PublicClientApplication({
+    auth: {
+      clientId: AUTH.CLIENT_ID,
+      authority: `https://login.microsoftonline.com/${AUTH.TENANT || "common"}`,
+      redirectUri: location.origin + location.pathname,
+    },
+    cache: { cacheLocation: "localStorage" },
+  });
+}
+
 function getSession() {
   try { return JSON.parse(localStorage.getItem(SESSION_KEY) || "null"); } catch { return null; }
 }
@@ -489,17 +521,41 @@ function setSession(s) { localStorage.setItem(SESSION_KEY, JSON.stringify(s)); }
 function clearSession() { localStorage.removeItem(SESSION_KEY); }
 function biometricEnabled() { return localStorage.getItem(BIO_KEY) === "1"; }
 
-// Mock "Sign in with Microsoft" — in production this is an MSAL popup/redirect.
+// Sign in — REAL Microsoft prompt when configured; demo identity otherwise.
 async function signIn() {
-  // Simulated identity; real MSAL returns account.name / username.
+  if (AUTH_ENABLED && msal) {
+    const result = await msal.loginPopup({ scopes: AUTH.SCOPES || ["User.Read"], prompt: "select_account" });
+    const acct = result.account;
+    const session = {
+      name: acct.name || acct.username,
+      email: acct.username,
+      initials: initials(acct.name || acct.username),
+      homeAccountId: acct.homeAccountId,
+      signedInAt: Date.now(),
+      real: true,
+    };
+    setSession(session);
+    return session;
+  }
+  // Demo identity (no Entra app registration configured yet).
   const session = {
     name: "Vinod Kumar K J",
     email: "vjanardhana@microsoft.com",
     initials: "VK",
     signedInAt: Date.now(),
+    real: false,
   };
   setSession(session);
   return session;
+}
+
+async function signOutAuth() {
+  try {
+    if (AUTH_ENABLED && msal) {
+      const acct = msal.getAllAccounts()[0];
+      if (acct) await msal.clearCache({ account: acct });
+    }
+  } catch {}
 }
 
 function initials(name) {
@@ -642,6 +698,7 @@ function renderSettings() {
   el("shareBtn").addEventListener("click", shareApp);
   el("signoutBtn").addEventListener("click", () => {
     if (!confirm("Sign out and remove this device's saved session, default, and biometric?")) return;
+    signOutAuth();
     clearSession();
     localStorage.removeItem(BIO_KEY);
     clearDefaults();

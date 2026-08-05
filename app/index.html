@@ -72,11 +72,6 @@
       <div id="detailContent"></div>
     </main>
 
-    <!-- DIFF VIEW -->
-    <main id="diffView" class="view hidden">
-      <div id="diffContent"></div>
-    </main>
-
     <!-- SETTINGS VIEW -->
     <main id="settingsView" class="view hidden">
       <div id="settingsContent"></div>
@@ -84,15 +79,15 @@
 
     <!-- Bottom nav -->
     <nav class="bottomnav">
-      <button data-nav="inbox" class="nav-btn active">Inbox</button>
-      <button data-nav="diff" class="nav-btn">Diff</button>
-      <button data-nav="actions" class="nav-btn">Actions</button>
+      <button data-nav="home" class="nav-btn active">🏠 Home</button>
+      <button data-nav="settings" class="nav-btn">⚙ Settings</button>
     </nav>
 
     <!-- Toast -->
     <div id="toast" class="toast hidden"></div>
   </div>
 
+  <script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"></script>
   <script src="config.js"></script>
   <script src="app.js"></script>
   <script>
