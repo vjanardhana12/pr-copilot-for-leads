@@ -1,0 +1,14 @@
+{
+  "name": "pr-copilot-for-leads-api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Mock backend for PR Copilot for Leads (serves the PWA + a JSON API).",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

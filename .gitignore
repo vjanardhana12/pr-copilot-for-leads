@@ -13,6 +13,7 @@ out/
 # Environment / secrets — NEVER commit tokens or PATs
 .env
 .env.*
+!.env.example
 *.local.json
 secrets.json
 appsettings.*.json
