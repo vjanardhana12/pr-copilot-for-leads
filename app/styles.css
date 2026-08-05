@@ -87,6 +87,19 @@ html, body {
   box-shadow: var(--shadow);
   text-overflow: ellipsis;
 }
+.star-btn {
+  flex: none;
+  width: 42px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: var(--shadow);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--muted);
+}
+.star-btn.is-default { color: #e8a317; border-color: #f0cf8a; background: #fffaf0; }
 
 /* Tabs */
 .tabs {  display: flex;

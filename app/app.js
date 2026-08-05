@@ -322,18 +322,48 @@ async function loadInbox() {
 }
 
 // ---- Selectors (project / repo) ----
+const DEFAULTS_KEY = "prcopilot.defaults";
+function getSavedDefaults() {
+  try {
+    return JSON.parse(localStorage.getItem(DEFAULTS_KEY) || "null");
+  } catch {
+    return null;
+  }
+}
+function saveDefaults(project, repo, repoName) {
+  localStorage.setItem(DEFAULTS_KEY, JSON.stringify({ project, repo, repoName }));
+}
+function clearDefaults() {
+  localStorage.removeItem(DEFAULTS_KEY);
+}
+function refreshStar() {
+  const d = getSavedDefaults();
+  const btn = el("defaultBtn");
+  const isDefault = d && d.project === currentProject && (d.repo || "") === (currentRepo || "");
+  btn.classList.toggle("is-default", !!isDefault);
+  btn.textContent = isDefault ? "★" : "☆";
+  btn.title = isDefault ? "This is your default (tap to clear)" : "Set current project/repo as default";
+}
+
 async function loadProjects() {
   const sel = el("projectSelect");
   try {
     const cfg = await api(`/api/config`);
-    currentProject = cfg.project || "";
+    const saved = getSavedDefaults();
+    // Prefer the saved default project; fall back to server default.
+    currentProject = (saved && saved.project) || cfg.project || "";
     const projects = await api(`/api/projects`);
     sel.innerHTML = projects
       .map((p) => `<option value="${escapeHtml(p.name)}">${escapeHtml(p.name)}</option>`)
       .join("");
-    if (currentProject) sel.value = currentProject;
-    else currentProject = sel.value;
+    // Only apply saved project if it's still in the list.
+    if (currentProject && [...sel.options].some((o) => o.value === currentProject)) {
+      sel.value = currentProject;
+    } else {
+      currentProject = sel.value;
+    }
     await loadRepos();
+    refreshStar();
   } catch (e) {
     // In mock mode / no access, hide selectors gracefully.
     document.querySelector(".selectors").style.display = "none";
@@ -347,7 +377,15 @@ async function loadRepos() {
     sel.innerHTML =
       `<option value="">All repositories (${repos.length})</option>` +
       repos.map((r) => `<option value="${escapeHtml(r.id)}">${escapeHtml(r.name)}</option>`).join("");
-    currentRepo = "";
+    // Apply saved default repo only when it belongs to the current project.
+    const saved = getSavedDefaults();
+    if (saved && saved.project === currentProject && saved.repo && [...sel.options].some((o) => o.value === saved.repo)) {
+      sel.value = saved.repo;
+      currentRepo = saved.repo;
+    } else {
+      currentRepo = "";
+    }
+    refreshStar();
   } catch (e) {
     sel.innerHTML = `<option value="">All repositories</option>`;
   }
@@ -374,11 +412,34 @@ document.querySelectorAll(".tab").forEach((t) => {
 el("projectSelect").addEventListener("change", async (e) => {
   currentProject = e.target.value;
   await loadRepos();
+  refreshStar();
   loadInbox();
 });
 el("repoSelect").addEventListener("change", (e) => {
   currentRepo = e.target.value;
+  refreshStar();
   loadInbox();
+});
+
+// Set / clear default project+repo
+el("defaultBtn").addEventListener("click", () => {
+  const d = getSavedDefaults();
+  const isDefault = d && d.project === currentProject && (d.repo || "") === (currentRepo || "");
+  if (isDefault) {
+    clearDefaults();
+    toast("Default cleared");
+  } else {
+    const repoName = el("repoSelect").selectedOptions[0]
+      ? el("repoSelect").selectedOptions[0].textContent
+      : "";
+    saveDefaults(currentProject, currentRepo, repoName);
+    toast(
+      currentRepo
+        ? `Default set: ${currentProject} / ${repoName}`
+        : `Default set: ${currentProject} (all repos)`
+    );
+  }
+  refreshStar();
 });
 document.querySelectorAll(".nav-btn").forEach((b) => {
   b.addEventListener("click", () => {
