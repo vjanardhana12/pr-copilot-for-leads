@@ -1,18 +1,19 @@
-// PR Copilot for Leads — mock backend (Node.js, zero dependencies).
-// Serves the PWA (../app) AND a small JSON API backed by mock data.
+// PR Copilot for Leads — backend (Node.js, zero dependencies).
+// Serves the PWA (../app) AND a small JSON API.
 //
-// Run:   npm start        (from the api/ folder, or `node server.js`)
+// Data source is chosen by env ADO_MODE:
+//   mock (default) → api/mock-data.js, works offline, no Azure
+//   live           → api/liveAdo.js, read-only, uses your cached Git credential
+//
+// Run:   npm start            (mock)
+//        npm run start:live   (live Azure DevOps)
 // Then:  open http://localhost:3000 on your laptop,
 //        or http://<your-laptop-ip>:3000 on your phone (same Wi-Fi).
-//
-// Swapping in real data later:
-//   - Replace the getPRs()/getPR() bodies with api/adoClient.js (Azure DevOps REST).
-//   - Replace the canned summary/commentDraft with api/aiClient.js (Azure OpenAI).
 
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
-const { PRS } = require("./mock-data");
+const svc = require("./prService");
 
 const PORT = process.env.PORT || 3000;
 const APP_DIR = path.join(__dirname, "..", "app");
@@ -71,65 +72,73 @@ function serveStatic(req, res) {
   });
 }
 
-// ---- mock "service" layer (swap for real ADO + AI later) ----
-function listPRs() {
-  // Only the fields the inbox needs.
-  return PRS.map((p) => ({
-    id: p.id,
-    title: p.title,
-    author: p.author,
-    risk: p.risk,
-    summaryShort: p.summaryShort,
-    checks: p.checks,
-  }));
-}
-function getPR(id) {
-  return PRS.find((p) => p.id === Number(id));
-}
-
 // ---- router ----
 const server = http.createServer(async (req, res) => {
-  const { method, url } = req;
+  const { method } = req;
+  const parsed = new URL(req.url, "http://localhost");
+  const url = parsed.pathname;
 
   if (method === "OPTIONS") return sendJson(res, 204, {});
 
-  // API routes
-  const m = url.match(/^\/api\/prs(?:\/(\d+))?(?:\/(\w[\w-]*))?/);
-  if (m) {
-    const id = m[1];
-    const action = m[2];
-
-    if (!id && method === "GET") return sendJson(res, 200, listPRs());
-
-    const pr = getPR(id);
-    if (!pr) return sendJson(res, 404, { error: "PR not found" });
-
-    if (!action && method === "GET") return sendJson(res, 200, pr);
-    if (action === "summary" && method === "GET")
-      return sendJson(res, 200, { summary: pr.summary, risk: pr.risk });
-    if (action === "comment-draft" && method === "GET")
-      return sendJson(res, 200, { text: pr.commentDraft });
-
-    if (method === "POST") {
-      const body = await readBody(req);
-      // In the mock we just acknowledge; real impl calls ADO REST.
-      if (action === "approve") return sendJson(res, 200, { ok: true, action: "approved", id: pr.id });
-      if (action === "reject") return sendJson(res, 200, { ok: true, action: "rejected", id: pr.id });
-      if (action === "comment")
-        return sendJson(res, 200, { ok: true, action: "commented", id: pr.id, text: body.text });
+  try {
+    // Triage "Today" queue — ranked across active PRs.
+    if (url === "/api/today" && method === "GET") {
+      const list = await svc.getList("active");
+      const ranked = list
+        .slice()
+        .sort((a, b) => (b.priority || 0) - (a.priority || 0))
+        .slice(0, 10);
+      return sendJson(res, 200, ranked);
     }
-    return sendJson(res, 405, { error: "Method not allowed" });
-  }
 
-  // health
-  if (url === "/api/health") return sendJson(res, 200, { ok: true, mode: "mock" });
+    // API routes: /api/prs , /api/prs/:id , /api/prs/:id/:action
+    const m = url.match(/^\/api\/prs(?:\/(\d+))?(?:\/([\w-]+))?$/);
+    if (m) {
+      const id = m[1];
+      const action = m[2];
+
+      if (!id && method === "GET") {
+        const status = parsed.searchParams.get("status") || "active";
+        const list = await svc.getList(status);
+        return sendJson(res, 200, list);
+      }
+
+      const pr = await svc.getDetail(id);
+      if (!pr) return sendJson(res, 404, { error: "PR not found" });
+
+      if (!action && method === "GET") return sendJson(res, 200, pr);
+      if (action === "summary" && method === "GET")
+        return sendJson(res, 200, { summary: pr.summary, risk: pr.risk, reasons: pr.reasons });
+      if (action === "comment-draft" && method === "GET")
+        return sendJson(res, 200, { text: svc.commentDraftFor(pr) });
+
+      if (method === "POST") {
+        const body = await readBody(req);
+        // Actions are acknowledged; live WRITE is intentionally not enabled yet
+        // (read-only phase). Wiring: liveAdo.setVote / addComment.
+        if (action === "approve")
+          return sendJson(res, 200, { ok: true, action: "approved", id: pr.id, note: svc.MODE === "live" ? "read-only: not sent to ADO" : "mock" });
+        if (action === "reject")
+          return sendJson(res, 200, { ok: true, action: "rejected", id: pr.id, note: svc.MODE === "live" ? "read-only: not sent to ADO" : "mock" });
+        if (action === "comment")
+          return sendJson(res, 200, { ok: true, action: "commented", id: pr.id, text: body.text, note: svc.MODE === "live" ? "read-only: not sent to ADO" : "mock" });
+      }
+      return sendJson(res, 405, { error: "Method not allowed" });
+    }
+
+    // health
+    if (url === "/api/health")
+      return sendJson(res, 200, { ok: true, mode: svc.MODE });
+  } catch (e) {
+    return sendJson(res, 500, { error: e.message });
+  }
 
   // static PWA
   return serveStatic(req, res);
 });
 
 server.listen(PORT, () => {
-  console.log(`\n  PR Copilot for Leads (mock) running`);
+  console.log(`\n  PR Copilot for Leads running  [mode: ${svc.MODE}]`);
   console.log(`  → Local:   http://localhost:${PORT}`);
   console.log(`  → Phone:   http://<your-laptop-ip>:${PORT}  (same Wi-Fi)\n`);
 });

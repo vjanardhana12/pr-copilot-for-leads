@@ -6,6 +6,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
+    "start:live": "node -e \"process.env.ADO_MODE='live';require('./server.js')\"",
     "dev": "node server.js"
   },
   "engines": {

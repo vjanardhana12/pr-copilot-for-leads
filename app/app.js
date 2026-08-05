@@ -11,6 +11,7 @@ const views = {
 };
 
 let currentPR = null; // holds the currently opened PR detail
+let currentTab = "today"; // today | active | completed | all
 
 // ---- API helpers ----
 async function api(path, opts) {
@@ -57,26 +58,48 @@ function riskAction(risk) {
 function renderInbox(prs) {
   const list = el("prList");
   const high = prs.filter((p) => p.risk === "high").length;
-  el("inboxSubtitle").textContent = `${prs.length} active · ${high} high risk`;
+  const label = currentTab === "today" ? "needs you today" : currentTab;
+  el("inboxSubtitle").textContent = `${prs.length} ${label} · ${high} high risk`;
   list.innerHTML = "";
+  if (!prs.length) {
+    list.innerHTML = `<div class="spinner">Nothing here 🎉</div>`;
+    return;
+  }
   prs.forEach((pr) => {
     const li = document.createElement("li");
     li.className = `pr-card ${riskClass(pr.risk)}`;
+    const reasons = (pr.reasons || [])
+      .slice(0, 3)
+      .map((r) => `<span class="reason ${pr.risk === "high" ? "hot" : ""}">${escapeHtml(r)}</span>`)
+      .join("");
+    const statusPill = pr.isDraft
+      ? `<span class="pr-pill draft">DRAFT</span>`
+      : pr.status && pr.status !== "active"
+      ? `<span class="pr-pill ${pr.status}">${pr.status.toUpperCase()}</span>`
+      : "";
+    const prio = currentTab === "today" && pr.priority != null
+      ? `<span class="prio">priority ${pr.priority}</span>`
+      : "";
     li.innerHTML = `
       <div class="pr-head">
-        <div>
-          <p class="pr-title">${escapeHtml(pr.title)}</p>
-          <p class="pr-meta">${escapeHtml(pr.summaryShort)}</p>
+        <div style="flex:1">
+          <p class="pr-title">${escapeHtml(pr.title)}${statusPill}</p>
+          <p class="pr-meta">
+            <span class="pr-repo">${escapeHtml(pr.repo || "")}</span>
+            ${pr.summaryShort ? " · " + escapeHtml(pr.summaryShort) : ""}
+          </p>
           <span class="badge ${riskClass(pr.risk)}">${pr.risk.toUpperCase()} RISK</span>
         </div>
-        ${riskAction(pr.risk)}
+        ${pr.status === "active" ? riskAction(pr.risk) : ""}
       </div>
+      <div class="reasons">${reasons}</div>
       <div class="dots">
-        <span class="dot ${pr.checks.build ? "ok" : "bad"}"></span><span class="dot-label">build</span>
-        <span class="dot ${pr.checks.labels ? "ok" : "warn"}"></span><span class="dot-label">labels</span>
-        <span class="dot ${pr.checks.rebase ? "ok" : "warn"}"></span><span class="dot-label">rebase</span>
-        <span class="pr-author" style="margin-left:auto">${escapeHtml(pr.author)}</span>
-      </div>`;
+        <span class="dot ${pr.checks && pr.checks.build ? "ok" : "bad"}"></span><span class="dot-label">build</span>
+        <span class="dot ${pr.checks && pr.checks.labels ? "ok" : "warn"}"></span><span class="dot-label">labels</span>
+        <span class="dot ${pr.checks && pr.checks.rebase ? "ok" : "warn"}"></span><span class="dot-label">rebase</span>
+        ${prio}
+      </div>
+      <div class="pr-author" style="margin-top:6px">${escapeHtml(pr.author || "")}</div>`;
     li.addEventListener("click", (e) => {
       if (e.target.hasAttribute("data-approve")) {
         e.stopPropagation();
@@ -98,12 +121,19 @@ function renderDetail(pr) {
   ];
   el("detailContent").innerHTML = `
     <div class="detail-title">${escapeHtml(pr.title)}</div>
-    <div class="detail-sub">${escapeHtml(pr.author)} · ${pr.filesChanged} files
+    <div class="detail-sub">${escapeHtml(pr.author || "")} · ${pr.filesChanged} files
       &nbsp;<span class="badge ${riskClass(pr.risk)}">${pr.risk.toUpperCase()}</span></div>
 
     <div class="panel">
       <p class="panel-label ai">AI SUMMARY</p>
       <p>${escapeHtml(pr.summary)}</p>
+      ${
+        (pr.reasons || []).length
+          ? `<div class="reasons">${pr.reasons
+              .map((r) => `<span class="reason ${pr.risk === "high" ? "hot" : ""}">${escapeHtml(r)}</span>`)
+              .join("")}</div>`
+          : ""
+      }
     </div>
 
     <div class="panel">
@@ -191,8 +221,13 @@ async function handleAction(id, act) {
 // ---- Load ----
 async function loadInbox() {
   el("inboxSubtitle").textContent = "Loading…";
+  el("prList").innerHTML = "";
   try {
-    const prs = await api(`/api/prs`);
+    const path =
+      currentTab === "today"
+        ? `/api/today`
+        : `/api/prs?status=${encodeURIComponent(currentTab)}`;
+    const prs = await api(path);
     renderInbox(prs);
   } catch (e) {
     el("inboxSubtitle").textContent = "Couldn't reach backend (" + e.message + ")";
@@ -205,6 +240,16 @@ el("backBtn").addEventListener("click", () => {
   loadInbox();
 });
 el("refreshBtn").addEventListener("click", loadInbox);
+
+// Tabs (Today / Active / Completed / All)
+document.querySelectorAll(".tab").forEach((t) => {
+  t.addEventListener("click", () => {
+    document.querySelectorAll(".tab").forEach((x) => x.classList.remove("active"));
+    t.classList.add("active");
+    currentTab = t.dataset.tab;
+    loadInbox();
+  });
+});
 document.querySelectorAll(".nav-btn").forEach((b) => {
   b.addEventListener("click", () => {
     const nav = b.dataset.nav;

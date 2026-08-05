@@ -26,6 +26,21 @@ mock data — tap a PR, view the AI summary, the clean diff, and approve/reject/
 
 > The backend serves the PWA too, so there's only **one thing to run**.
 
+### Run against REAL Azure DevOps (read-only)
+
+No PAT needed — it reuses the Git credential already on your machine
+(the one `git push` uses).
+
+```powershell
+cd api
+$env:ADO_MODE='live'; $env:ADO_ORG='carlsberggroup'; $env:ADO_PROJECT='1760-SmartCore-HUB'
+node server.js
+```
+
+You'll now see **live PRs** with **Active / Completed / All** tabs and a **Today**
+smart-triage queue. Writes (approve/reject/comment) are intentionally **disabled**
+in live mode for now — actions are acknowledged but not sent to ADO.
+
 ---
 
 ## Open it on your phone (iPhone or Android)
