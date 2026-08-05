@@ -87,8 +87,13 @@ async function listPullRequests(status = "active", top = 50, project, repoId) {
 }
 
 async function getPullRequest(prId, project) {
-  // Cross-repo lookup: PR by id (project-scoped).
-  return adoGet(`/git/pullrequests/${prId}?api-version=7.0`, project);
+  // Try project-scoped first; fall back to org-level PR-by-id lookup so a
+  // missing/incorrect project can't break detail loading.
+  try {
+    return await adoGet(`/git/pullrequests/${prId}?api-version=7.0`, project);
+  } catch (e) {
+    return adoGet(`/git/pullrequests/${prId}?api-version=7.0`, "__org__");
+  }
 }
 
 async function getPullRequestThreads(repoId, prId, project) {

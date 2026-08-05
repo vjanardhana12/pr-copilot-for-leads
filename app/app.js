@@ -173,7 +173,8 @@ async function openDetail(id) {
   showView("detail", "Pull Request");
   el("detailContent").innerHTML = '<div class="spinner">Loading…</div>';
   try {
-    const pr = await api(`/api/prs/${id}`);
+    const q = currentProject ? `?project=${encodeURIComponent(currentProject)}` : "";
+    const pr = await api(`/api/prs/${id}${q}`);
     renderDetail(pr);
     renderDiff(pr);
   } catch (e) {
