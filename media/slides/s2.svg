@@ -1,0 +1,28 @@
+<svg width="1920" height="1080" viewBox="0 0 1920 1080" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, Arial, sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2a1020"/><stop offset="0.6" stop-color="#4a1530"/><stop offset="1" stop-color="#6b1f3f"/>
+    </linearGradient>
+  </defs>
+  <rect width="1920" height="1080" fill="url(#bg)"/>
+  <text x="160" y="200" fill="#ff9db0" font-size="34" font-weight="600" letter-spacing="3">THE PROBLEM</text>
+  <text x="160" y="320" fill="#ffffff" font-size="76" font-weight="700">Reviewing PRs on mobile</text>
+  <text x="160" y="410" fill="#ffffff" font-size="76" font-weight="700">is nearly impossible.</text>
+  <g transform="translate(160,500)" font-size="40" fill="#f3c9d3">
+    <text x="0" y="40">✗   Cramped Azure DevOps window</text>
+    <text x="0" y="115">✗   No real diff — can't code review</text>
+    <text x="0" y="190">✗   Miss rebases, wrong labels slip through</text>
+    <text x="0" y="265">✗   Reviews get delayed or rushed</text>
+  </g>
+  <!-- tiny cramped phone -->
+  <g transform="translate(1480,430)">
+    <rect x="0" y="0" width="220" height="440" rx="30" fill="#1a0a14"/>
+    <rect x="10" y="10" width="200" height="420" rx="24" fill="#2c1420"/>
+    <rect x="26" y="40" width="168" height="26" rx="6" fill="#3d1c2c"/>
+    <rect x="26" y="80" width="168" height="26" rx="6" fill="#3d1c2c"/>
+    <rect x="26" y="120" width="120" height="26" rx="6" fill="#3d1c2c"/>
+    <rect x="26" y="170" width="168" height="26" rx="6" fill="#3d1c2c"/>
+    <rect x="26" y="210" width="140" height="26" rx="6" fill="#3d1c2c"/>
+    <text x="110" y="330" text-anchor="middle" fill="#8a5566" font-size="20">tiny · unreadable</text>
+  </g>
+</svg>

@@ -1,0 +1,29 @@
+<svg width="1920" height="1080" viewBox="0 0 1920 1080" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, Arial, sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b1e3f"/><stop offset="0.55" stop-color="#123a6b"/><stop offset="1" stop-color="#1e5aa8"/>
+    </linearGradient>
+    <linearGradient id="screen" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f6f9ff"/><stop offset="1" stop-color="#e9f0fb"/></linearGradient>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#0b1e3f" flood-opacity="0.14"/></filter>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="20" stdDeviation="30" flood-color="#000000" flood-opacity="0.4"/></filter>
+  </defs>
+  <rect width="1920" height="1080" fill="url(#bg)"/>
+  <text x="160" y="200" fill="#8fd3ff" font-size="34" font-weight="600" letter-spacing="3">THE SOLUTION</text>
+  <text x="160" y="320" fill="#ffffff" font-size="72" font-weight="700">Every active PR,</text>
+  <text x="160" y="405" fill="#ffffff" font-size="72" font-weight="700">triaged for you.</text>
+  <text x="160" y="490" fill="#bcd3f5" font-size="38">One inbox. Risk at a glance.</text>
+  <text x="160" y="540" fill="#bcd3f5" font-size="38">Built for the thumb.</text>
+
+  <!-- phone inbox -->
+  <g transform="translate(1180,120)" filter="url(#shadow)">
+    <rect x="0" y="0" width="520" height="840" rx="66" fill="#0a1730"/>
+    <rect x="16" y="16" width="488" height="808" rx="52" fill="url(#screen)"/>
+    <rect x="200" y="34" width="120" height="22" rx="11" fill="#0a1730"/>
+    <g transform="translate(46,86)"><text x="0" y="34" fill="#0b1e3f" font-size="32" font-weight="700">My Pull Requests</text><text x="0" y="72" fill="#5b6b85" font-size="22">4 active · 1 high risk</text></g>
+    <!-- cards -->
+    <g transform="translate(40,200)" filter="url(#soft)"><rect width="440" height="130" rx="20" fill="#fff"/><rect width="9" height="130" rx="4" fill="#1faa59"/><text x="70" y="52" fill="#0b1e3f" font-size="26" font-weight="600">Fix label + comment</text><text x="30" y="90" fill="#5b6b85" font-size="21">3 files · no logic change</text><rect x="30" y="100" width="100" height="26" rx="13" fill="#e5f5ec"/><text x="80" y="118" text-anchor="middle" fill="#1faa59" font-size="17" font-weight="600">LOW</text><rect x="310" y="48" width="110" height="42" rx="21" fill="#1faa59"/><text x="365" y="75" text-anchor="middle" fill="#fff" font-size="20" font-weight="600">Approve</text></g>
+    <g transform="translate(40,350)" filter="url(#soft)"><rect width="440" height="130" rx="20" fill="#fff"/><rect width="9" height="130" rx="4" fill="#e8a317"/><text x="70" y="52" fill="#0b1e3f" font-size="26" font-weight="600">Add validation rule</text><text x="30" y="90" fill="#5b6b85" font-size="21">6 files · needs rebase</text><rect x="30" y="100" width="120" height="26" rx="13" fill="#fdf1dc"/><text x="90" y="118" text-anchor="middle" fill="#b9791a" font-size="17" font-weight="600">MEDIUM</text><rect x="310" y="48" width="110" height="42" rx="21" fill="#eef2f8"/><text x="365" y="75" text-anchor="middle" fill="#2a4a7f" font-size="20" font-weight="600">Review</text></g>
+    <g transform="translate(40,500)" filter="url(#soft)"><rect width="440" height="130" rx="20" fill="#fff"/><rect width="9" height="130" rx="4" fill="#d64545"/><text x="70" y="52" fill="#0b1e3f" font-size="26" font-weight="600">Change posting logic</text><text x="30" y="90" fill="#5b6b85" font-size="21">SalesTableType · no test</text><rect x="30" y="100" width="110" height="26" rx="13" fill="#fbe5e5"/><text x="85" y="118" text-anchor="middle" fill="#d64545" font-size="17" font-weight="600">HIGH</text><rect x="310" y="48" width="110" height="42" rx="21" fill="#fbe5e5"/><text x="365" y="75" text-anchor="middle" fill="#d64545" font-size="20" font-weight="600">Changes</text></g>
+    <g transform="translate(40,680)"><rect width="440" height="80" rx="20" fill="#0b1e3f"/><text x="90" y="48" text-anchor="middle" fill="#fff" font-size="21" font-weight="600">Inbox</text><text x="220" y="48" text-anchor="middle" fill="#7f97bd" font-size="21">Diff</text><text x="360" y="48" text-anchor="middle" fill="#7f97bd" font-size="21">Actions</text></g>
+  </g>
+</svg>

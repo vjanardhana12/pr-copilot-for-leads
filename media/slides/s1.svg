@@ -1,0 +1,21 @@
+<svg width="1920" height="1080" viewBox="0 0 1920 1080" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, Arial, sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b1e3f"/><stop offset="0.55" stop-color="#123a6b"/><stop offset="1" stop-color="#1e5aa8"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#4aa3ff"/><stop offset="1" stop-color="#8a5cff"/>
+    </linearGradient>
+  </defs>
+  <rect width="1920" height="1080" fill="url(#bg)"/>
+  <circle cx="1620" cy="180" r="380" fill="#ffffff" opacity="0.05"/>
+  <circle cx="260" cy="920" r="320" fill="#ffffff" opacity="0.05"/>
+  <g transform="translate(260,360)">
+    <rect x="0" y="0" width="230" height="56" rx="28" fill="url(#accent)"/>
+    <text x="115" y="37" text-anchor="middle" fill="#ffffff" font-size="26" font-weight="600">HACKATHON 2026</text>
+    <text x="0" y="180" fill="#ffffff" font-size="118" font-weight="700">PR Copilot for Leads</text>
+    <text x="4" y="260" fill="#bcd3f5" font-size="42" font-weight="400">Review, triage &amp; approve F&amp;O pull requests</text>
+    <text x="4" y="316" fill="#bcd3f5" font-size="42" font-weight="400">from your phone — in seconds.</text>
+  </g>
+  <text x="260" y="960" fill="#8fb0e0" font-size="30">Azure DevOps REST  +  Azure OpenAI  ·  Dynamics 365 F&amp;O</text>
+</svg>
