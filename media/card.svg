@@ -1,0 +1,125 @@
+<svg width="1280" height="720" viewBox="0 0 1280 720" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, Arial, sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b1e3f"/>
+      <stop offset="0.55" stop-color="#123a6b"/>
+      <stop offset="1" stop-color="#1e5aa8"/>
+    </linearGradient>
+    <linearGradient id="screen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f6f9ff"/>
+      <stop offset="1" stop-color="#e9f0fb"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#4aa3ff"/>
+      <stop offset="1" stop-color="#8a5cff"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="14" stdDeviation="22" flood-color="#000000" flood-opacity="0.35"/>
+    </filter>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#0b1e3f" flood-opacity="0.12"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1280" height="720" fill="url(#bg)"/>
+  <circle cx="1080" cy="120" r="260" fill="#ffffff" opacity="0.05"/>
+  <circle cx="180" cy="620" r="220" fill="#ffffff" opacity="0.05"/>
+
+  <!-- Left: title block -->
+  <g transform="translate(80,150)">
+    <rect x="0" y="0" width="150" height="40" rx="20" fill="url(#accent)"/>
+    <text x="75" y="26" text-anchor="middle" fill="#ffffff" font-size="18" font-weight="600">HACKATHON 2026</text>
+
+    <text x="0" y="120" fill="#ffffff" font-size="64" font-weight="700">PR Copilot</text>
+    <text x="0" y="188" fill="#ffffff" font-size="64" font-weight="700">for Leads</text>
+
+    <text x="4" y="250" fill="#bcd3f5" font-size="26" font-weight="400">Review, triage &amp; approve F&amp;O pull</text>
+    <text x="4" y="288" fill="#bcd3f5" font-size="26" font-weight="400">requests from your phone — in seconds.</text>
+
+    <!-- feature chips -->
+    <g transform="translate(0,340)" font-size="20" font-weight="600">
+      <g>
+        <rect x="0" y="0" width="180" height="44" rx="22" fill="#ffffff" opacity="0.12"/>
+        <text x="90" y="29" text-anchor="middle" fill="#ffffff">AI risk summary</text>
+      </g>
+      <g transform="translate(196,0)">
+        <rect x="0" y="0" width="150" height="44" rx="22" fill="#ffffff" opacity="0.12"/>
+        <text x="75" y="29" text-anchor="middle" fill="#ffffff">Clean diff</text>
+      </g>
+      <g transform="translate(0,60)">
+        <rect x="0" y="0" width="190" height="44" rx="22" fill="#ffffff" opacity="0.12"/>
+        <text x="95" y="29" text-anchor="middle" fill="#ffffff">One-tap approve</text>
+      </g>
+      <g transform="translate(206,60)">
+        <rect x="0" y="0" width="150" height="44" rx="22" fill="#ffffff" opacity="0.12"/>
+        <text x="75" y="29" text-anchor="middle" fill="#ffffff">Prechecks</text>
+      </g>
+    </g>
+  </g>
+
+  <!-- Right: phone mockup -->
+  <g transform="translate(830,70)" filter="url(#shadow)">
+    <!-- phone body -->
+    <rect x="0" y="0" width="360" height="580" rx="46" fill="#0a1730"/>
+    <rect x="12" y="12" width="336" height="556" rx="36" fill="url(#screen)"/>
+    <!-- notch -->
+    <rect x="140" y="24" width="80" height="16" rx="8" fill="#0a1730"/>
+
+    <!-- app header -->
+    <g transform="translate(32,60)">
+      <text x="0" y="24" fill="#0b1e3f" font-size="22" font-weight="700">My Pull Requests</text>
+      <text x="0" y="50" fill="#5b6b85" font-size="15">4 active · 1 high risk</text>
+    </g>
+
+    <!-- PR card 1 (green) -->
+    <g transform="translate(28,140)" filter="url(#soft)">
+      <rect x="0" y="0" width="304" height="96" rx="16" fill="#ffffff"/>
+      <rect x="0" y="0" width="6" height="96" rx="3" fill="#1faa59"/>
+      <circle cx="30" cy="30" r="9" fill="#1faa59"/>
+      <text x="50" y="35" fill="#0b1e3f" font-size="17" font-weight="600">Fix label + comment</text>
+      <text x="20" y="62" fill="#5b6b85" font-size="14">3 files · no logic change</text>
+      <rect x="20" y="72" width="70" height="18" rx="9" fill="#e5f5ec"/>
+      <text x="55" y="85" text-anchor="middle" fill="#1faa59" font-size="12" font-weight="600">LOW RISK</text>
+      <rect x="214" y="34" width="76" height="30" rx="15" fill="#1faa59"/>
+      <text x="252" y="54" text-anchor="middle" fill="#ffffff" font-size="14" font-weight="600">Approve</text>
+    </g>
+
+    <!-- PR card 2 (amber) -->
+    <g transform="translate(28,250)" filter="url(#soft)">
+      <rect x="0" y="0" width="304" height="96" rx="16" fill="#ffffff"/>
+      <rect x="0" y="0" width="6" height="96" rx="3" fill="#e8a317"/>
+      <circle cx="30" cy="30" r="9" fill="#e8a317"/>
+      <text x="50" y="35" fill="#0b1e3f" font-size="17" font-weight="600">Add validation rule</text>
+      <text x="20" y="62" fill="#5b6b85" font-size="14">6 files · needs rebase</text>
+      <rect x="20" y="72" width="86" height="18" rx="9" fill="#fdf1dc"/>
+      <text x="63" y="85" text-anchor="middle" fill="#b9791a" font-size="12" font-weight="600">MED RISK</text>
+      <rect x="206" y="34" width="84" height="30" rx="15" fill="#eef2f8"/>
+      <text x="248" y="54" text-anchor="middle" fill="#2a4a7f" font-size="14" font-weight="600">Review</text>
+    </g>
+
+    <!-- PR card 3 (red) -->
+    <g transform="translate(28,360)" filter="url(#soft)">
+      <rect x="0" y="0" width="304" height="96" rx="16" fill="#ffffff"/>
+      <rect x="0" y="0" width="6" height="96" rx="3" fill="#d64545"/>
+      <circle cx="30" cy="30" r="9" fill="#d64545"/>
+      <text x="50" y="35" fill="#0b1e3f" font-size="17" font-weight="600">Change posting logic</text>
+      <text x="20" y="62" fill="#5b6b85" font-size="14">SalesTableType · no test</text>
+      <rect x="20" y="72" width="88" height="18" rx="9" fill="#fbe5e5"/>
+      <text x="64" y="85" text-anchor="middle" fill="#d64545" font-size="12" font-weight="600">HIGH RISK</text>
+      <rect x="206" y="34" width="84" height="30" rx="15" fill="#fbe5e5"/>
+      <text x="248" y="54" text-anchor="middle" fill="#d64545" font-size="14" font-weight="600">Changes</text>
+    </g>
+
+    <!-- bottom nav -->
+    <g transform="translate(28,478)">
+      <rect x="0" y="0" width="304" height="58" rx="16" fill="#0b1e3f"/>
+      <text x="60" y="35" text-anchor="middle" fill="#ffffff" font-size="14" font-weight="600">Inbox</text>
+      <text x="152" y="35" text-anchor="middle" fill="#7f97bd" font-size="14">Diff</text>
+      <text x="244" y="35" text-anchor="middle" fill="#7f97bd" font-size="14">Actions</text>
+    </g>
+  </g>
+
+  <!-- footer strip -->
+  <text x="80" y="660" fill="#8fb0e0" font-size="18">Azure DevOps REST  +  Azure OpenAI  ·  Dynamics 365 F&amp;O</text>
+</svg>
