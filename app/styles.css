@@ -61,6 +61,18 @@ html, body {
   cursor: pointer;
 }
 .icon-btn:active { background: rgba(255,255,255,0.28); }
+.avatar-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: none;
+  background: linear-gradient(135deg, #4aa3ff, #8a5cff);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.avatar-btn:active { filter: brightness(0.92); }
 
 /* Views */
 .view { flex: 1; padding: 16px; padding-bottom: 90px; }
@@ -142,6 +154,16 @@ html, body {
 .pr-pill.abandoned { background: #eee; color: #888; }
 .pr-pill.draft { background: #ececec; color: #777; }
 .prio { margin-left: auto; font-size: 12px; color: var(--muted); }
+.urg {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 9px;
+}
+.urg.urgent { background: var(--red-bg); color: var(--red); }
+.urg.soon { background: var(--amber-bg); color: #b9791a; }
+.urg.low { background: var(--green-bg); color: var(--green); }
 
 /* PR list */
 .pr-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }

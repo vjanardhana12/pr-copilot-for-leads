@@ -15,7 +15,7 @@
 const { PRS } = require("./mock-data");
 const live = require("./liveAdo");
 const proxy = require("./adoProxy");
-const { scoreRisk, deriveChecks, trianglePriority, isNoise, daysAgo } = require("./risk");
+const { scoreRisk, deriveChecks, trianglePriority, isNoise, daysAgo, urgencyBucket } = require("./risk");
 const xpp = require("./xppChecks");
 
 const MODE = (process.env.ADO_MODE || "mock").toLowerCase();
@@ -32,19 +32,23 @@ function shortFrom(pr, risk, count) {
 
 // ---------- MOCK ----------
 function mockList() {
-  return PRS.map((p) => ({
-    id: p.id,
-    title: p.title,
-    author: p.author,
-    risk: p.risk,
-    priority: { high: 90, medium: 50, low: 20 }[p.risk],
-    reasons: [p.summaryShort],
-    repo: "Contoso.FnO",
-    status: "active",
-    summaryShort: p.summaryShort,
-    checks: p.checks,
-    ageDays: 1,
-  }));
+  return PRS.map((p) => {
+    const priority = { high: 90, medium: 50, low: 20 }[p.risk];
+    return {
+      id: p.id,
+      title: p.title,
+      author: p.author,
+      risk: p.risk,
+      priority,
+      urgency: urgencyBucket(priority),
+      reasons: [p.summaryShort],
+      repo: "Contoso.FnO",
+      status: "active",
+      summaryShort: p.summaryShort,
+      checks: p.checks,
+      ageDays: 1,
+    };
+  });
 }
 function mockDetail(id) {
   const p = PRS.find((x) => x.id === Number(id));
@@ -119,12 +123,14 @@ function pickAdapter(ctx) {
 // ---------- generic mappers (work for both dev-cred and user-token) ----------
 function mapListItem(pr, risk, reasons, checks, orgName) {
   const projName = pr.repository && pr.repository.project ? pr.repository.project.name : "";
+  const priority = trianglePriority(pr, risk);
   return {
     id: pr.pullRequestId,
     title: pr.title,
     author: pr.createdBy && pr.createdBy.displayName,
     risk,
-    priority: trianglePriority(pr, risk),
+    priority,
+    urgency: urgencyBucket(priority),
     reasons,
     repo: pr.repository && pr.repository.name,
     status: pr.status,

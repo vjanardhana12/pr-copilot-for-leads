@@ -105,6 +105,12 @@ function showModal(opts) {
 function riskClass(risk) {
   return { low: "low", medium: "medium", high: "high" }[risk] || "low";
 }
+function bucketFromPriority(p) {
+  if (p == null) return "";
+  if (p >= 50) return "urgent";
+  if (p >= 25) return "soon";
+  return "low";
+}
 function riskAction(risk) {
   return {
     low: `<button class="quick-btn approve" data-approve>Approve</button>`,
@@ -135,9 +141,12 @@ function renderInbox(prs) {
       : pr.status && pr.status !== "active"
       ? `<span class="pr-pill ${pr.status}">${pr.status.toUpperCase()}</span>`
       : "";
-    const prio = currentTab === "today" && pr.priority != null
-      ? `<span class="prio">priority ${pr.priority}</span>`
-      : "";
+    const urg = pr.urgency || bucketFromPriority(pr.priority);
+    const urgLabel = { urgent: "🔴 Urgent", soon: "🟡 Soon", low: "🟢 Low" }[urg] || "";
+    const prio =
+      currentTab === "today" && urgLabel
+        ? `<span class="urg ${urg}">${urgLabel}</span>`
+        : "";
     li.innerHTML = `
       <div class="pr-head">
         <div style="flex:1">
@@ -713,6 +722,9 @@ function showSignin() {
 async function enterApp() {
   el("signinScreen").classList.add("hidden");
   el("app").classList.remove("hidden");
+  // Show the signed-in user's initials in the top-right avatar.
+  const s = getSession();
+  if (s) el("avatarBtn").textContent = s.initials || initials(s.name);
   showView("inbox", "My Pull Requests");
   // For a returning real session, silently get a fresh ADO token.
   const sess = getSession();
@@ -936,7 +948,7 @@ el("biometricBtn").addEventListener("click", async () => {
     toast("Unlock failed: " + e.message);
   }
 });
-el("settingsBtn").addEventListener("click", () => {
+el("avatarBtn").addEventListener("click", () => {
   renderSettings();
   showView("settings", "Settings");
 });

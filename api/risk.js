@@ -106,4 +106,12 @@ function trianglePriority(pr, risk) {
   return Math.round(riskWeight * ageWeight * blockWeight * isDraft * 10);
 }
 
-module.exports = { scoreRisk, deriveChecks, trianglePriority, isNoise, daysAgo };
+module.exports = { scoreRisk, deriveChecks, trianglePriority, isNoise, daysAgo, urgencyBucket };
+
+// Map a numeric priority score to a friendly bucket for the UI.
+//   urgent (>= 50) · soon (>= 25) · low (< 25)
+function urgencyBucket(priority) {
+  if (priority >= 50) return "urgent";
+  if (priority >= 25) return "soon";
+  return "low";
+}
