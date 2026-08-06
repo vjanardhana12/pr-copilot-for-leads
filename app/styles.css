@@ -345,6 +345,58 @@ html, body {
 
 .spinner { text-align: center; color: var(--muted); padding: 40px; font-size: 14px; }
 
+/* In-app modal (replaces browser prompt/confirm) */
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(11, 30, 63, 0.45);
+  padding: 0;
+  animation: modalFade 0.15s ease;
+}
+@keyframes modalFade { from { opacity: 0; } to { opacity: 1; } }
+.modal-card {
+  background: #fff;
+  width: 100%;
+  max-width: 520px;
+  border-radius: 22px 22px 0 0;
+  padding: 22px 20px calc(20px + env(safe-area-inset-bottom));
+  box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.25);
+  animation: modalUp 0.2s ease;
+}
+@keyframes modalUp { from { transform: translateY(20px); } to { transform: translateY(0); } }
+.modal-card h3 { margin: 0 0 6px; font-size: 19px; color: var(--ink); }
+.modal-msg { margin: 0 0 14px; font-size: 14px; color: var(--muted); line-height: 1.5; }
+.modal-input {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px;
+  font-size: 15px;
+  font-family: inherit;
+  color: var(--ink);
+  resize: vertical;
+  box-sizing: border-box;
+  margin-bottom: 16px;
+}
+.modal-input:focus { outline: none; border-color: var(--blue); }
+.modal-actions { display: flex; gap: 10px; }
+.modal-btn {
+  flex: 1;
+  border: none;
+  border-radius: 14px;
+  padding: 14px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.modal-btn.ghost { background: #eef2f8; color: var(--muted); }
+.modal-btn.primary { background: var(--blue); color: #fff; }
+.modal-btn.danger { background: var(--red); color: #fff; }
+
 /* Sign-in screen */
 .signin {
   position: fixed; inset: 0;

@@ -59,6 +59,48 @@ function toast(msg) {
   t._timer = setTimeout(() => t.classList.add("hidden"), 2200);
 }
 
+// In-app modal → Promise. opts: { title, message, input, value, okText, danger }
+// Resolves to the entered string (input mode) / true (confirm) or null on cancel.
+function showModal(opts) {
+  return new Promise((resolve) => {
+    const modal = el("modal");
+    el("modalTitle").textContent = opts.title || "";
+    const msg = el("modalMsg");
+    if (opts.message) {
+      msg.textContent = opts.message;
+      msg.classList.remove("hidden");
+    } else {
+      msg.classList.add("hidden");
+    }
+    const input = el("modalInput");
+    if (opts.input) {
+      input.value = opts.value || "";
+      input.rows = opts.rows || 4;
+      input.classList.remove("hidden");
+    } else {
+      input.classList.add("hidden");
+    }
+    const okBtn = el("modalOk");
+    const cancelBtn = el("modalCancel");
+    okBtn.textContent = opts.okText || "OK";
+    okBtn.classList.toggle("danger", !!opts.danger);
+
+    const close = (val) => {
+      modal.classList.add("hidden");
+      okBtn.onclick = null;
+      cancelBtn.onclick = null;
+      modal.onclick = null;
+      resolve(val);
+    };
+    okBtn.onclick = () => close(opts.input ? input.value : true);
+    cancelBtn.onclick = () => close(null);
+    modal.onclick = (e) => { if (e.target === modal) close(null); };
+
+    modal.classList.remove("hidden");
+    if (opts.input) setTimeout(() => { input.focus(); input.select(); }, 50);
+  });
+}
+
 // ---- Rendering ----
 function riskClass(risk) {
   return { low: "low", medium: "medium", high: "high" }[risk] || "low";
@@ -295,8 +337,15 @@ async function handleAction(id, act) {
   if (act === "comment") {
     try {
       const draft = await api(`/api/prs/${id}/comment-draft`);
-      const text = prompt("AI-drafted comment (edit if needed):", draft.text);
-      if (text == null) return;
+      const text = await showModal({
+        title: "Add a comment",
+        message: "AI-drafted — edit if needed, then send to the developer.",
+        input: true,
+        value: draft.text,
+        rows: 5,
+        okText: "Send",
+      });
+      if (text == null || !text.trim()) return;
       await api(`/api/prs/${id}/comment`, {
         method: "POST",
         body: JSON.stringify({ text }),
@@ -307,7 +356,13 @@ async function handleAction(id, act) {
     }
   }
   if (act === "revert") {
-    if (!confirm("Create a revert PR for this merged PR?")) return;
+    const ok = await showModal({
+      title: "Revert this PR?",
+      message: "Creates a new revert pull request for this merged PR.",
+      okText: "Create revert",
+      danger: true,
+    });
+    if (!ok) return;
     try {
       const q = currentProject ? `?project=${encodeURIComponent(currentProject)}` : "";
       const r = await api(`/api/prs/${id}/revert${q}`, { method: "POST", body: JSON.stringify({}) });
@@ -317,15 +372,22 @@ async function handleAction(id, act) {
     }
   }
   if (act === "cherry-pick") {
-    const target = prompt("Cherry-pick onto which branch? (e.g. release/2026.07 or main)", "main");
-    if (!target) return;
+    const target = await showModal({
+      title: "Cherry-pick",
+      message: "Enter the target branch to cherry-pick this PR onto.",
+      input: true,
+      value: "main",
+      rows: 1,
+      okText: "Cherry-pick",
+    });
+    if (!target || !target.trim()) return;
     try {
       const q = currentProject ? `?project=${encodeURIComponent(currentProject)}` : "";
       const r = await api(`/api/prs/${id}/cherry-pick${q}`, {
         method: "POST",
-        body: JSON.stringify({ ontoRef: target }),
+        body: JSON.stringify({ ontoRef: target.trim() }),
       });
-      toast(r.preview ? `Cherry-pick preview → ${target} (read-only)` : `Cherry-picked → ${target}`);
+      toast(r.preview ? `Cherry-pick preview → ${target.trim()} (read-only)` : `Cherry-picked → ${target.trim()}`);
     } catch (e) {
       toast("Cherry-pick failed: " + e.message);
     }
@@ -767,8 +829,14 @@ function renderSettings() {
   });
   el("checkUpdateBtn").addEventListener("click", checkForUpdate);
   el("shareBtn").addEventListener("click", shareApp);
-  el("signoutBtn").addEventListener("click", () => {
-    if (!confirm("Sign out and remove this device's saved session, default, and biometric?")) return;
+  el("signoutBtn").addEventListener("click", async () => {
+    const ok = await showModal({
+      title: "Sign out?",
+      message: "This removes the saved session, default, and biometric on this device.",
+      okText: "Sign out",
+      danger: true,
+    });
+    if (!ok) return;
     signOutAuth();
     clearSession();
     localStorage.removeItem(BIO_KEY);
